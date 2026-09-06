@@ -12,8 +12,10 @@
     "payload": "node scripts/collect-payload.js",
     "prebuild": "npm run payload",
     "build": "electron-builder --win",
+    "prebuild:linux": "npm run payload",
     "build:linux": "electron-builder --linux AppImage deb",
     "icon": "electron scripts/make-icon.js",
+    "prebuild:portable": "npm run payload",
     "build:portable": "electron-builder --win portable",
     "overlay:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-overlay.ps1",
     "overlay:prepare": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-overlay.ps1"

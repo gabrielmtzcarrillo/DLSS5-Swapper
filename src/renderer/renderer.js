@@ -419,6 +419,11 @@ $('dlgSave').onclick = async () => {
 async function renderSettings() {
   const info = await window.lab.settings();
   $('settings').innerHTML = `
+    <div class="set-row"><div><label class="k" for="setDgVoodooVersion">${t('setDgVoodooVersion')}</label>
+      <div class="v" id="setDgVoodooHint">${t('setDgVoodooHint')}</div></div>
+      <select class="ghost sm" id="setDgVoodooVersion" aria-describedby="setDgVoodooHint">
+        ${info.dgVoodooVersions.map(version => `<option value="${esc(version)}" ${version === info.dgVoodooVersion ? 'selected' : ''}>v${esc(version)}</option>`).join('')}
+      </select></div>
     <div class="set-row"><div><div class="k">${t('setGroupGames')}</div>
       <div class="v" id="setGroupGamesHint">${t('setGroupGamesHint')}</div></div>
       <button class="setting-switch" id="setGroupGames" type="button" role="switch"
@@ -463,6 +468,18 @@ async function renderSettings() {
       <button class="ghost sm" id="setReset">${t('setReset')}</button></div>
     <div class="set-row"><div><div class="k">${t('setPosters')}</div><div class="v">${esc(info.posterDir)}</div></div>
       <span class="d">${t('setSaved', info.posterCount)}</span></div>`;
+  $('setDgVoodooVersion').onchange = async () => {
+    const select = $('setDgVoodooVersion');
+    select.disabled = true;
+    try {
+      info.dgVoodooVersion = await window.lab.setDgVoodooVersion(select.value);
+    } catch (error) {
+      select.value = info.dgVoodooVersion;
+      log(error.message);
+    } finally {
+      select.disabled = false;
+    }
+  };
   $('setGroupGames').onclick = async () => {
     const toggle = $('setGroupGames');
     const enabled = toggle.getAttribute('aria-checked') !== 'true';
@@ -700,6 +717,9 @@ function installOptions(d, pick, dir) {
       ${!opti ? `<label><span>${t('fRoute')}</span><select id="routeChoice">${routes.filter(item => item !== 'optiscaler').map((item) =>
         `<option value="${item}"${item === route ? ' selected' : ''}>${t(item === 'feeder' ? 'routeFeeder' : 'routeNative')}</option>`).join('')}</select></label>
       ` : ''}
+      ${!opti && ['d3d8', 'd3d9'].includes(api.api) ? `<label><span>${t('setDgVoodooVersion')}</span><select id="installDgVoodooVersion" aria-describedby="installDgVoodooHint">
+        ${d.dgVoodooVersions.map(version => `<option value="${esc(version)}"${version === d.dgVoodooVersion ? ' selected' : ''}>v${esc(version)}</option>`).join('')}
+      </select></label>` : ''}
     </div>
     ${apiHint}
     <div class="emu-note backend-note" id="backendHint"><span>${t(opti ? 'optiHint' : 'backendHint')}</span>
@@ -710,7 +730,7 @@ function installOptions(d, pick, dir) {
     </div>
     ${pick.installIssue ? `<div class="emu-note compatibility-warning" role="alert">${t(pick.installIssue)}</div>` : ''}
     ${warning}
-    ${['d3d8', 'd3d9'].includes(api.api) ? `<div class="emu-note">${t('legacyRendererHint')}</div>` : ''}
+    ${['d3d8', 'd3d9'].includes(api.api) ? `<div class="emu-note" id="installDgVoodooHint"><span>${t('setDgVoodooHint')}</span><span>${t('legacyRendererHint')}</span></div>` : ''}
     ${pick.emulator ? `<div class="emu-note"><b>${esc(pick.emulator.name)} · ${esc(pick.emulator.system)}</b><span>${esc(pick.emulator.hint)}</span><span>${t('emulatorDepthHint')}</span>${pick.emulator.key === 'xenia' ? `<span>${t('xeniaUiHint')}</span>` : ''}</div>` : ''}`;
 }
 
@@ -743,11 +763,14 @@ async function openSheet(dir, keepLog = false) {
   $('overlay').classList.remove('hidden');
   $('sheet').innerHTML = '<div class="pad" style="color:var(--dim)">Reading the folder…</div>';
 
-  const [d, art] = await Promise.all([
+  const [d, art, settings] = await Promise.all([
     window.lab.details(dir),
-    window.lab.artFetch(dir, g.name, g.appid)
+    window.lab.artFetch(dir, g.name, g.appid),
+    window.lab.settings()
   ]);
   if (sheetGame !== g) return;
+  d.dgVoodooVersions = settings.dgVoodooVersions;
+  d.dgVoodooVersion = settings.dgVoodooVersion;
   sheetDetails = d;
   if (!exeChoice.has(dir) && d.installedExe) {
     const installed = d.exes.find((item) => item.rel.toLowerCase() === String(d.installedExe).toLowerCase());
@@ -813,6 +836,19 @@ async function openSheet(dir, keepLog = false) {
   $('sheetClose').onclick = closeSheet;
   $('copyJob').onclick = () => copyText([sheetGame.name, sheetGame.dir, '', ...jobLines].join('\n'));
   wireExePicker(dir);
+  const dgVoodooSelect = $('installDgVoodooVersion');
+  if (dgVoodooSelect) dgVoodooSelect.onchange = async () => {
+    document.querySelectorAll('#sheet select, #doInstall, #doRestore, #exeSelect').forEach(e => { e.disabled = true; });
+    try {
+      await window.lab.setDgVoodooVersion(dgVoodooSelect.value);
+    } catch (error) {
+      jobLog(error.message);
+    }
+    if (sheetGame?.dir === dir) {
+      await openSheet(dir, true);
+      $('installDgVoodooVersion')?.focus();
+    }
+  };
   const apiSelect = $('apiChoice');
   if (apiSelect) apiSelect.onchange = async () => {
     const value = apiSelect.value;

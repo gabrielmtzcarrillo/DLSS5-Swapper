@@ -15,7 +15,7 @@ const art = require('./src/steamart');
 const { backupRoot, saveActiveManifest, writeTracked } = require('./src/core/apply.js');
 const { scanSource } = require('./src/core/scan.js');
 const pe = require('./src/core/pe.js');
-const { ensureLumenite, ensureDgVoodoo, missingVCRuntime } = require('./src/core/runtime-components.js');
+const { ensureLumenite, ensureDgVoodoo, missingVCRuntime, DGVOODOO_VERSIONS, dgVoodooRelease } = require('./src/core/runtime-components.js');
 // A component that downloaded and verified, then vanished before it could be
 // used, is a security tool quarantining it - never the connection. Saying
 // "check your connection" there sends people after the wrong thing.
@@ -230,20 +230,34 @@ function readState() {
   return { folders: [], excludedRoots: [], manual: [], posters: {}, hidden: [], scans: {} };
 }
 
+// Share state across handlers awaiting I/O; preserve the existing JSON shape.
+let cachedState;
+let stateWrites = Promise.resolve(true);
 function loadState() {
-  if (!liveState) liveState = readState();
-  return liveState;
+  if (cachedState) return cachedState;
+  try {
+    cachedState = JSON.parse(fs.readFileSync(stateFile(), 'utf8'));
+  } catch {
+    cachedState = { folders: [], excludedRoots: [], manual: [], posters: {}, hidden: [], scans: {} };
+  }
+  return cachedState;
 }
 
 function saveState(state) {
-  // A handler that built its own object still becomes the live one, so a caller
-  // that does not go through loadState() cannot resurrect the old race.
-  if (state && state !== liveState) liveState = state;
-  try {
-    fs.mkdirSync(path.dirname(stateFile()), { recursive: true });
-    fs.writeFileSync(stateFile(), JSON.stringify(liveState, null, 2), 'utf8');
-    return true;
-  } catch { return false; }
+  // A handler that built its own object still becomes the live one.
+  if (state && state !== cachedState) cachedState = state;
+  const file = stateFile();
+  const json = JSON.stringify(cachedState);
+  // Serialize asynchronous writes, replacing the file only when complete.
+  stateWrites = stateWrites.then(async () => {
+    try {
+      await fs.promises.mkdir(path.dirname(file), { recursive: true });
+      await fs.promises.writeFile(file + '.tmp', json, 'utf8');
+      await fs.promises.rename(file + '.tmp', file);
+      return true;
+    } catch { return false; }
+  });
+  return stateWrites;
 }
 
 // A choice belongs to one executable, not every launcher in the same folder.
@@ -294,9 +308,8 @@ function createWindow() {
   win.once('ready-to-show', () => win.show());
   win.on('closed', () => {
     win = null;
-    // The overlay bridge holds an offscreen window, so the window list is
-    // never empty and window-all-closed never arrives: without this the
-    // process stayed in Task Manager with nothing on screen.
+    // The offscreen overlay window can outlive the main window, so waiting
+    // for window-all-closed would leave the app running invisibly.
     if (!quitting) app.quit();
   });
 }
@@ -355,19 +368,33 @@ app.whenReady().then(async () => {
   // context by the tests, where src modules are stubbed and cannot be called.
   require('./src/overlay-ipc')({ app, ipcMain, dialog, shell, window: () => win, bridge: () => overlayBridge });
   createWindow();
-  try {
-    overlayBridge = await require('./src/overlay-bridge')({ BrowserWindow, userData: app.getPath('userData') });
-    if (quitting) overlayBridge.close();
-  } catch (error) {
-    if (!quitting) console.error('Overlay bridge:', error.message);
-  }
+  if (quitting) return;
+  overlayBridge = require('./src/overlay-service')({
+    userData: app.getPath('userData'), version: app.getVersion(),
+    startBridge: options => require('./src/overlay-bridge')({ BrowserWindow, userData: app.getPath('userData'), ...options }),
+    showError: async detail => {
+      if (quitting) return false;
+      const result = await dialog.showMessageBox(win, { type: 'error', title: 'Overlay unavailable',
+        message: 'The in-game overlay could not start. F8 may show “Waiting for the shared panel design”.',
+        detail: 'Retry restarts only the overlay bridge. Keep Swapper open and use one game at a time. If this persists, attach the diagnostic file below to your report. You can close the panel with F8 or Escape and use Home for the original ReShade tools. Restart Swapper to retry later.\n\n' + detail,
+        buttons: ['Retry overlay', 'Continue without overlay'], defaultId: 0, cancelId: 1 });
+      return result.response === 0;
+    }
+  });
+  await overlayBridge.start();
 });
 // The overlay bridge keeps an offscreen window of its own, so closing the
 // visible one no longer emptied the window list and window-all-closed never
 // arrived: the process stayed in Task Manager with nothing on screen. Quitting
 // follows the window the person actually closed.
 app.on('window-all-closed', () => app.quit());
-app.on('before-quit', () => { quitting = true; overlayBridge?.close(); });
+app.on('before-quit', event => {
+  if (quitting) return;
+  event.preventDefault();
+  quitting = true;
+  overlayBridge?.close();
+  stateWrites.finally(() => app.quit());
+});
 
 // ---------- library ----------
 
@@ -389,17 +416,17 @@ ipcMain.handle('boot', () => {
   };
 });
 
-ipcMain.handle('set-lang', (_event, lang) => {
+ipcMain.handle('set-lang', async (_event, lang) => {
   const state = loadState();
   state.lang = lang;
-  saveState(state);
+  await saveState(state);
   return lang;
 });
 
-ipcMain.handle('set-theme', (_event, theme) => {
+ipcMain.handle('set-theme', async (_event, theme) => {
   const state = loadState();
   state.theme = theme;
-  saveState(state);
+  await saveState(state);
   return theme;
 });
 
@@ -430,6 +457,8 @@ ipcMain.handle('settings', () => {
   return {
     folders: state.folders, stateFile: stateFile(), posterDir: posterDir(), posterCount,
     roots: lastRoots,
+    dgVoodooVersions: DGVOODOO_VERSIONS.map(item => item.version),
+    dgVoodooVersion: dgVoodooRelease(state.dgVoodooVersion).version,
     excludedRoots: state.excludedRoots || [],
     hidden: [...(state.hidden || [])],
     autoScanDrives: state.autoScanDrives === true,
@@ -437,27 +466,35 @@ ipcMain.handle('settings', () => {
   };
 });
 
-ipcMain.handle('set-group-games-by-store', (_event, enabled) => {
+ipcMain.handle('set-dgvoodoo-version', async (_event, version) => {
+  const selected = dgVoodooRelease(version).version;
+  const state = loadState();
+  state.dgVoodooVersion = selected;
+  await saveState(state);
+  return selected;
+});
+
+ipcMain.handle('set-group-games-by-store', async (_event, enabled) => {
   const state = loadState();
   state.groupGamesByStore = enabled === true;
-  saveState(state);
+  await saveState(state);
   return state.groupGamesByStore;
 });
 
-ipcMain.handle('set-auto-scan-drives', (_event, enabled) => {
+ipcMain.handle('set-auto-scan-drives', async (_event, enabled) => {
   const state = loadState();
   state.autoScanDrives = enabled === true;
   if (!state.autoScanDrives) lastRoots = [];
-  saveState(state);
+  await saveState(state);
   return state.autoScanDrives;
 });
 
 // Used when a folder arrives by drop rather than through the picker.
-ipcMain.handle('add-game-path', (_event, dir) => {
+ipcMain.handle('add-game-path', async (_event, dir) => {
   const state = loadState();
   if (fs.existsSync(dir) && !state.manual.includes(dir)) {
     state.manual.push(dir);
-    saveState(state);
+    await saveState(state);
   }
   return dir;
 });
@@ -525,8 +562,9 @@ ipcMain.handle('scan', async (_event, dir) => {
       scannedAt: Date.now(),
       rules: SCAN_RULES
     };
+    state.scans = state.scans || {};
     state.scans[key] = result;
-    saveState(state);
+    await saveState(state);
     return result;
   } catch (err) {
     return { ok: false, api: null, dx12: false, reason: 'error', error: err.message };
@@ -543,11 +581,11 @@ ipcMain.handle('add-folder', async () => {
   state.excludedRoots = (state.excludedRoots || []).filter(
     (root) => path.resolve(root).toLowerCase() !== path.resolve(res.filePaths[0]).toLowerCase()
   );
-  saveState(state);
+  await saveState(state);
   return res.filePaths[0];
 });
 
-ipcMain.handle('remove-folder', (_event, dir) => {
+ipcMain.handle('remove-folder', async (_event, dir) => {
   const state = loadState();
   state.folders = state.folders.filter((f) => f !== dir);
   state.excludedRoots = state.excludedRoots || [];
@@ -557,14 +595,14 @@ ipcMain.handle('remove-folder', (_event, dir) => {
   lastRoots = lastRoots.filter(
     (root) => path.resolve(root).toLowerCase() !== path.resolve(dir).toLowerCase()
   );
-  saveState(state);
+  await saveState(state);
   return true;
 });
 
 // Auto-discovered roots used to be display-only, so unwanted locations came
 // back on every scan. Excluding one removes only its library entries; no file
 // or folder on disk is changed.
-ipcMain.handle('exclude-root', (_event, dir) => {
+ipcMain.handle('exclude-root', async (_event, dir) => {
   const state = loadState();
   state.excludedRoots = state.excludedRoots || [];
   if (!state.excludedRoots.some((root) => path.resolve(root).toLowerCase() === path.resolve(dir).toLowerCase())) {
@@ -576,7 +614,7 @@ ipcMain.handle('exclude-root', (_event, dir) => {
   lastRoots = lastRoots.filter(
     (root) => path.resolve(root).toLowerCase() !== path.resolve(dir).toLowerCase()
   );
-  saveState(state);
+  await saveState(state);
   return true;
 });
 
@@ -585,7 +623,7 @@ ipcMain.handle('add-game', async () => {
   if (res.canceled) return null;
   const state = loadState();
   if (!state.manual.includes(res.filePaths[0])) state.manual.push(res.filePaths[0]);
-  saveState(state);
+  await saveState(state);
   return res.filePaths[0];
 });
 
@@ -604,14 +642,14 @@ ipcMain.handle('set-poster', async (_event, dir) => {
   const dest = path.join(posterDir(), keyFor(dir) + path.extname(res.filePaths[0]));
   fs.copyFileSync(res.filePaths[0], dest);
   state.posters[keyFor(dir)] = dest;
-  saveState(state);
+  await saveState(state);
   return pathToFileURL(dest).href;
 });
 
-ipcMain.handle('hide', (_event, dir) => {
+ipcMain.handle('hide', async (_event, dir) => {
   const state = loadState();
   if (!state.hidden.includes(dir)) state.hidden.push(dir);
-  saveState(state);
+  await saveState(state);
   return true;
 });
 
@@ -625,9 +663,14 @@ ipcMain.handle('unhide', (_event, dir) => {
   return true;
 });
 
-ipcMain.handle('reset', () => {
-  try { fs.unlinkSync(stateFile()); } catch {}
-  return true;
+ipcMain.handle('reset', async () => {
+  cachedState = { folders: [], excludedRoots: [], manual: [], posters: {}, hidden: [], scans: {} };
+  const file = stateFile();
+  stateWrites = stateWrites.then(async () => {
+    try { await fs.promises.unlink(file); } catch {}
+    return true;
+  });
+  return stateWrites;
 });
 
 ipcMain.handle('open', (_event, dir) => shell.openPath(dir));
@@ -638,12 +681,12 @@ ipcMain.handle('open-project', async (_event, destination) => {
 });
 
 // The home page lists the last games touched, newest first.
-ipcMain.handle('touch', (_event, dir) => {
+ipcMain.handle('touch', async (_event, dir) => {
   const state = loadState();
   state.recents = [{ dir, at: Date.now() }]
     .concat((state.recents || []).filter((r) => r.dir !== dir))
     .slice(0, 12);
-  saveState(state);
+  await saveState(state);
   return state.recents;
 });
 
@@ -732,7 +775,7 @@ ipcMain.handle('addons', () => addonLibrary());
 // Switching one on leaves the others alone. The single exception is a build
 // that would be written under a name another switched-on build already claims:
 // only one file can hold that name, so the older choice steps aside.
-ipcMain.handle('addon-toggle', (_event, file, on) => {
+ipcMain.handle('addon-toggle', async (_event, file, on) => {
   const state = loadState();
   let list = state.addons || (state.addon ? [state.addon] : []);
   delete state.addon;
@@ -747,12 +790,12 @@ ipcMain.handle('addon-toggle', (_event, file, on) => {
     list = list.filter((f) => f !== clash && f !== file);
     list.push(file);
     if (clash) {
-      state.addons = list; saveState(state);
+      state.addons = list; await saveState(state);
       return { ok: true, replaced: path.basename(clash) };
     }
   }
   state.addons = list;
-  saveState(state);
+  await saveState(state);
   return { ok: true };
 });
 
@@ -780,7 +823,7 @@ ipcMain.handle('addon-pick', async () => {
   };
 });
 
-ipcMain.handle('addon-save', (_event, entry) => {
+ipcMain.handle('addon-save', async (_event, entry) => {
   const state = loadState();
   const list = (state.addonFiles || []).map((e) => (typeof e === 'string' ? { path: e } : e));
   state.addonFiles = [
@@ -792,18 +835,18 @@ ipcMain.handle('addon-save', (_event, entry) => {
       notes: String(entry.description || '').split(/\r?\n/).map((x) => x.trim()).filter(Boolean)
     }
   ];
-  saveState(state);
+  await saveState(state);
   return true;
 });
 
-ipcMain.handle('addon-remove', (_event, file) => {
+ipcMain.handle('addon-remove', async (_event, file) => {
   const state = loadState();
   const list = (state.addonFiles || []).map((e) => (typeof e === 'string' ? { path: e } : e));
   state.addonFiles = list.filter((e) => e.path !== file);
   // Removing the one that was switched on falls back to the built-in add-on.
   state.addons = (state.addons || []).filter((f) => f !== file);
   if (state.addon === file) delete state.addon;
-  saveState(state);
+  await saveState(state);
   return true;
 });
 
@@ -836,7 +879,7 @@ ipcMain.handle('art-fetch', async (_event, dir, name, appid) => {
 
     state.art = state.art || {};
     state.art[key] = record;
-    saveState(state);
+    await saveState(state);
     return record;
   } catch (err) {
     return { error: err.message };
@@ -941,7 +984,7 @@ ipcMain.handle('set-api-override', async (_event, dir, exePath, value) => {
   const key = apiPreferenceKey(dir, exePath);
   if (value === 'auto') delete state.apiOverrides[key];
   else state.apiOverrides[key] = value;
-  return saveState(state) ? { ok: true } : { ok: false, code: 'errApiSave' };
+  return await saveState(state) ? { ok: true } : { ok: false, code: 'errApiSave' };
 });
 async function exclusiveMutation(work) {
   if (mutationBusy) return { ok: false, code: 'errJobBusy' };
@@ -953,7 +996,12 @@ async function exclusiveMutation(work) {
 
 ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi) => exclusiveMutation(async () => {
   const p = payload();
-  if (!p) return { ok: false, message: 'No payload found - run "npm run payload" in app/' };
+  if (!p) return {
+    ok: false,
+    message: app.isPackaged
+      ? 'The mod payload is missing or incomplete in this build. Reinstall a complete Swapper package; custom builds must run npm run payload before packaging.'
+      : 'The mod payload is missing or incomplete. From the project root, run npm run payload -- "C:\\path\\to\\DLSS5-files" using the folder containing the DLSS 5 runtime and add-on, then retry.'
+  };
   const scan = await scanGame(dir);
   if (!scan.chosen) return { ok: false, message: 'No game executable found' };
 
@@ -1065,7 +1113,7 @@ ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi) =>
     }
     if (api === 'd3d8' || api === 'd3d9') {
       try {
-        p.source.feeder.dgVoodooDir = await ensureDgVoodoo(app.getPath('userData'));
+        p.source.feeder.dgVoodooDir = await ensureDgVoodoo(app.getPath('userData'), loadState().dgVoodooVersion);
         send({ code: 'legacyWrapperReady', params: { api, bitness: target.bitness } });
       } catch (error) {
         return { ok: false, code: componentCode(error, 'legacyDownloadHint'), message: error.message };

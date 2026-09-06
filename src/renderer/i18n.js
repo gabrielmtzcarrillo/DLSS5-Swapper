@@ -22,6 +22,8 @@ const LANGS = [
 
 const S = {
   en: {
+    setDgVoodooVersion: 'dgVoodoo2 version',
+    setDgVoodooHint: 'Official download for DX8/9 games. Used on the next Apply / Install; existing installations change only when reapplied.',
     antiCheatWarningTitle: 'Warning: anti-cheat detected',
     antiCheatWarning: 'This game appears to use anti-cheat. ReShade, Feeder or OptiScaler may cause crashes, prevent launch, or result in an account ban. Installation is optional: click Install and explicitly accept the risks to continue. Anti-cheat will not be disabled or bypassed.',
     errAntiCheatConsent: 'Anti-cheat was detected. Click Install again to review the warning and choose whether to continue.',
@@ -119,6 +121,8 @@ const S = {
     artFound: (a, b) => `Artwork: ${a} of ${b} found`, libReady: (n, d) => `Library ready — ${n} games, ${d} on DirectX 12`
   },
   ar: {
+    setDgVoodooVersion: 'إصدار dgVoodoo2',
+    setDgVoodooHint: 'تنزيل رسمي لألعاب DX8/9. يُستخدم عند التطبيق / التثبيت التالي؛ لا تتغير التثبيتات الحالية إلا عند إعادة التطبيق.',
     antiCheatWarningTitle: 'تحذير: اكتشاف مكافحة غش',
     antiCheatWarning: 'تبدو هذه اللعبة مزودة بنظام مكافحة غش. استخدام ReShade أو Feeder أو OptiScaler قد يسبب كراش أو يمنع تشغيل اللعبة أو يؤدي إلى حظر حسابك. التثبيت اختياري: اضغط تثبيت ثم وافق على المخاطر للمتابعة. لن نعطّل مكافحة الغش أو نتجاوزها.',
     errAntiCheatConsent: 'اكتُشفت مكافحة غش. اضغط تثبيت مجددًا لمراجعة التحذير واختيار المتابعة أو الإلغاء.',

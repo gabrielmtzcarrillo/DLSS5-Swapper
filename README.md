@@ -34,6 +34,7 @@
 - **Search and filters:** combine title, graphics API, DLSS status/version and add-ons; click counters to filter.
 - **Flexible layout:** group by store or show everything in one list, with game artwork and light/dark themes.
 - **Controlled scanning:** full-drive scanning is **off by default**. Added folders still scan normally; enable all-drive discovery or remove scan folders in Settings.
+- **dgVoodoo2 version:** choose v2.87.4 or v2.87.3 in Settings for DX8/9 games. The choice is saved and used on the next Apply / Install. Each version downloads from its official release with SHA-256 verification; reapply to change an existing installation.
 - **Right-click shortcuts:** open/copy folder, rescan, change cover, restore originals or hide a game.
 - **Backups and History:** restore original files, keep installation records, and copy History/activity/install logs.
 - **In-game overlay:** press **F8** to open the app's own panel over the running game and move the real DLSS Neural Rendering sliders while you play. Supports the **DLSS5-Feeder** and **RenoDX v4.7** routes only.

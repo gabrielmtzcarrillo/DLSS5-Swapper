@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('lab', {
   copyText: (text) => ipcRenderer.invoke('copy-text', text),
   gameMenu: (dir, options) => ipcRenderer.invoke('game-menu', dir, options),
   settings: () => ipcRenderer.invoke('settings'),
+  setDgVoodooVersion: (version) => ipcRenderer.invoke('set-dgvoodoo-version', version),
   setGroupGamesByStore: (enabled) => ipcRenderer.invoke('set-group-games-by-store', enabled),
   setAutoScanDrives: (enabled) => ipcRenderer.invoke('set-auto-scan-drives', enabled),
   addFolder: () => ipcRenderer.invoke('add-folder'),

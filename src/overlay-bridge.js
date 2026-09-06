@@ -7,7 +7,7 @@ const protocol = require('./overlay-protocol');
 const preferences=require('./overlay-preferences');
 const { ipcMain } = require('electron');
 
-module.exports = async function startOverlayBridge({ BrowserWindow, userData, idleTakeoverMs = 5000 }) {
+module.exports = async function startOverlayBridge({ BrowserWindow, userData, onFailure = () => {}, startupTimeoutMs = 15000, idleTakeoverMs = 5000 }) {
   const token = crypto.randomBytes(16).toString('hex');
   const endpoint = path.join(userData, 'overlay-bridge.endpoint');
   // The add-on composes the same name from LAB_OVERLAY_PROFILE (see
@@ -23,8 +23,31 @@ module.exports = async function startOverlayBridge({ BrowserWindow, userData, id
   const IDLE_TAKEOVER_MS = idleTakeoverMs;
   let server = null;
   let runtimeStatus = null, commandTime = 0, commandCount = 0;
-  const win = new BrowserWindow({ show: false, width: protocol.WIDTH, height: 900, transparent: true, frame: false,
+  let stage = 'create-window', started = false, failure = null, rejectStartup, firstFrame;
+  const aborted = new Promise((_, reject) => { rejectStartup = reject; });
+  // A failure can arrive between awaited startup steps.
+  aborted.catch(() => {});
+  const frameReady = new Promise(resolve => { firstFrame = resolve; });
+  const diagnostic = error => Object.assign(new Error(`Overlay bridge failed at ${stage}: ${error.message}`),
+    { stage, code: error.code, endpoint, pipeName, cause: error });
+  function fail(error) {
+    if (closed || failure) return;
+    failure = diagnostic(error);
+    close();
+    rejectStartup(failure);
+    if (started) onFailure(failure);
+  }
+  const wait = async operation => {
+    const result = await Promise.race([operation, aborted]);
+    if (closed) throw failure || diagnostic(new Error('Bridge closed during startup'));
+    return result;
+  };
+  const timer = setTimeout(() => fail(new Error('Startup timed out after ' + startupTimeoutMs + ' ms')), startupTimeoutMs);
+  let win;
+  try {
+  win = new BrowserWindow({ show: false, width: protocol.WIDTH, height: 900, transparent: true, frame: false,
     webPreferences: { preload: path.join(__dirname, '../overlay-preload.js'), offscreen: true, contextIsolation: true, sandbox: true, nodeIntegration: false, backgroundThrottling: false, spellcheck: false } });
+  } catch (error) { clearTimeout(timer); throw diagnostic(error); }
   const preferenceChanged=(dir,value)=>{if(dir===userData&&!closed&&!win.isDestroyed())win.webContents.send('lab-overlay-preferences',value);};
   const control = (event, command) => {
     if (closed || !client || event.sender !== win.webContents) return;
@@ -32,7 +55,6 @@ module.exports = async function startOverlayBridge({ BrowserWindow, userData, id
     if (++commandCount > 240) return;
     try { client.write(protocol.command(runtimeStatus, command)); } catch(error) { console.warn('Lab overlay command rejected:',error.message); }
   };
-  ipcMain.on('lab-overlay-control', control);
   const resize = (event, height) => {
     if (closed || event.sender !== win.webContents || !Number.isInteger(height) || height < 200 || height > protocol.MAX_HEIGHT) return;
     panelHeight = height;
@@ -40,10 +62,6 @@ module.exports = async function startOverlayBridge({ BrowserWindow, userData, id
     win.webContents.enableDeviceEmulation({ screenPosition: 'desktop', screenSize: { width: protocol.WIDTH, height }, deviceScaleFactor: 1, viewSize: { width: protocol.WIDTH, height }, viewPosition: { x: 0, y: 0 }, scale: 1 });
     win.webContents.invalidate();
   };
-  ipcMain.on('lab-overlay-resize', resize);
-  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  win.webContents.on('will-navigate', event => event.preventDefault());
-  win.webContents.setFrameRate(30);
   function sendLatest() {
     if (!client || client.destroyed || client.inFlight || !latest) return;
     client.inFlight = true;
@@ -70,11 +88,16 @@ module.exports = async function startOverlayBridge({ BrowserWindow, userData, id
     // A bitmap that is not exactly the size it claims would be refused by the
     // add-on and drop the connection; skip the frame instead.
     if (bitmap.length !== width * height * 4) return;
-    latest = protocol.frame(bitmap, width, height, ++sequence);
-    sendLatest();
+    try {
+      latest = protocol.frame(bitmap, width, height, ++sequence);
+      firstFrame();
+      sendLatest();
+    } catch (error) { fail(error); }
   });
   function close() {
     if (closed) return; closed = true;
+    clearTimeout(timer);
+    rejectStartup(failure || diagnostic(new Error('Bridge closed during startup')));
     preferences.events.removeListener('change',preferenceChanged);
     client?.destroy(); server?.close();
     ipcMain.removeListener('lab-overlay-control', control);
@@ -82,20 +105,33 @@ module.exports = async function startOverlayBridge({ BrowserWindow, userData, id
     if (!win.isDestroyed()) win.destroy();
     try { if (fs.readFileSync(endpoint, 'utf8') === token) fs.unlinkSync(endpoint); } catch {}
   }
-  win.webContents.on('render-process-gone', (_event, details) => { console.error('Lab overlay renderer stopped:', details.reason); close(); });
-  win.on('closed', close);
+  win.webContents.on('render-process-gone', (_event, details) => fail(new Error(`Renderer stopped: ${details.reason} (exit ${details.exitCode})`)));
+  win.webContents.on('preload-error', (_event, preload, error) => fail(new Error(`Preload ${preload}: ${error.message}`)));
+  win.on('closed', () => { if (!closed) fail(new Error('Panel window closed unexpectedly')); });
   try {
-  await win.loadFile(path.join(__dirname, 'renderer/overlay-panel.html'));
+  stage = 'configure-window';
+  ipcMain.on('lab-overlay-control', control);
+  ipcMain.on('lab-overlay-resize', resize);
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  win.webContents.on('will-navigate', event => event.preventDefault());
+  win.webContents.setFrameRate(30);
+  stage = 'load-panel';
+  await wait(win.loadFile(path.join(__dirname, 'renderer/overlay-panel.html')));
+  stage = 'preferences';
   win.webContents.send('lab-overlay-preferences',preferences.read(userData));
   preferences.events.on('change',preferenceChanged);
-  const height = Math.ceil(await win.webContents.executeJavaScript(`document.querySelector('#panel').getBoundingClientRect().height`));
-  if (height < 1 || height > protocol.MAX_HEIGHT) { win.destroy(); throw Error('Overlay panel height exceeds its bounded surface'); }
+  stage = 'measure-panel';
+  const height = Math.ceil(await wait(win.webContents.executeJavaScript(`document.querySelector('#panel').getBoundingClientRect().height`)));
+  if (!Number.isFinite(height) || height < 1 || height > protocol.MAX_HEIGHT) throw Error('Overlay panel height exceeds its bounded surface');
   panelHeight = height;
   win.setContentSize(protocol.WIDTH, height);
   // Fixed CSS pixels regardless of desktop DPI. No scaling/reflow in the native UI.
   win.webContents.enableDeviceEmulation({ screenPosition: 'desktop', screenSize: { width: protocol.WIDTH, height }, deviceScaleFactor: 1, viewSize: { width: protocol.WIDTH, height }, viewPosition: { x: 0, y: 0 }, scale: 1 });
   ready = true;
+  stage = 'first-frame';
   win.webContents.invalidate();
+  await wait(frameReady);
+  stage = 'listen-pipe';
   server = net.createServer(socket => {
     // One test game at a time: a second process must not alter its controls.
     // But a game that crashed or was killed can leave its end of the pipe open
@@ -165,11 +201,14 @@ module.exports = async function startOverlayBridge({ BrowserWindow, userData, id
     sendLatest();
     win.webContents.invalidate();
   });
-    await new Promise((resolve, reject) => { server.once('error', reject); server.listen(pipeName, resolve); });
-    server.on('error', error => { console.error('Lab overlay transport:', error.message); close(); });
+    server.on('error', fail);
+    await wait(new Promise(resolve => { server.listen(pipeName, resolve); }));
+    stage = 'publish-endpoint';
     fs.mkdirSync(userData, { recursive: true });
     fs.writeFileSync(endpoint, token, { mode: 0o600 });
-  } catch (error) { close(); throw error; }
+  } catch (error) { const reported = failure || diagnostic(error); close(); throw reported; }
+  clearTimeout(timer);
+  stage = 'running'; started = true;
   // What the Overlay page shows instead of leaving someone to guess why the
   // panel in the game says it is still waiting.
   const state = () => ({

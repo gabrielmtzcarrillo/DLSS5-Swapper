@@ -15,10 +15,23 @@ const DGVOODOO = {
   sha256: '74aeb464d829db80e3f4aa8fae235e6e3b38fc01188776c5c2376bb0dea0956e'
 };
 
-async function ensureDgVoodoo(cacheRoot) {
-  const base = path.join(path.resolve(cacheRoot), 'components', `dgVoodoo2-${DGVOODOO.version}`);
+const DGVOODOO_VERSIONS = [DGVOODOO, {
+  version: '2.87.3',
+  url: 'https://github.com/dege-diosg/dgVoodoo2/releases/download/v2.87.3/dgVoodoo2_87_3.zip',
+  sha256: '6fb954bed55bf70e948c5045a663a9df31ea206faf105e327bafe46c318f867f'
+}];
+
+function dgVoodooRelease(version = DGVOODOO.version) {
+  const release = DGVOODOO_VERSIONS.find(item => item.version === version);
+  if (!release) throw new Error('Unsupported dgVoodoo2 version');
+  return release;
+}
+
+async function ensureDgVoodoo(cacheRoot, version) {
+  const release = dgVoodooRelease(version);
+  const base = path.join(path.resolve(cacheRoot), 'components', `dgVoodoo2-${release.version}`);
   const archive = base + '.zip';
-  if (!cached(archive, DGVOODOO.sha256)) await fetchVerified(DGVOODOO.url, DGVOODOO.sha256, archive);
+  await fetchVerified(release.url, release.sha256, archive);
   // Re-extract the verified archive, never trust previously cached loose DLLs.
   await extractZip(archive, { dir: base });
   return base;
@@ -56,16 +69,55 @@ async function fetchBytes(url) {
     headers: { 'User-Agent': 'DLSS5-Swapper/2.1' },
     signal: AbortSignal.timeout(120000)
   });
-  if (!response.ok) throw new Error(`Download failed (${response.status})`);
+  if (!response.ok) {
+    await response.body?.cancel();
+    throw Object.assign(new Error(`Download failed (${response.status})`), { httpStatus: response.status });
+  }
   return Buffer.from(await response.arrayBuffer());
 }
 
-async function download(url, file) {
-  const data = await fetchBytes(url);
-  const temp = file + '.part';
+async function download(url, file, expected) {
+  if (expected && fs.existsSync(file)) {
+    if (digest(file) === expected) return;
+    await fs.promises.unlink(file);
+  }
   await fs.promises.mkdir(path.dirname(file), { recursive: true });
-  await fs.promises.writeFile(temp, data);
-  await fs.promises.rename(temp, file);
+  // Each attempt owns its temporary file; interrupted bytes are never cached.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const temp = `${file}.${crypto.randomUUID()}.part`;
+    let retryable = false;
+    try {
+      let bytes;
+      try {
+        bytes = await fetchBytes(url);
+      } catch (error) {
+        retryable = !!(error && (error.httpStatus == null || [408, 429, 500, 502, 503, 504].includes(error.httpStatus)));
+        throw error;
+      }
+      await fs.promises.writeFile(temp, bytes);
+      if (expected && digest(temp) !== expected) {
+        retryable = true;
+        throw new Error('Component SHA-256 verification failed');
+      }
+      await fs.promises.rename(temp, file);
+      return;
+    } catch (error) {
+      if (!retryable || attempt === 2) throw error;
+    } finally {
+      await fs.promises.rm(temp, { force: true });
+    }
+    await new Promise(resolve => setTimeout(resolve, 250 * 2 ** attempt));
+  }
+}
+
+async function fetchVerified(url, expected, file) {
+  await download(url, file, expected);
+  try {
+    if (digest(file) !== expected) throw componentError('componentCorrupt', 'Component SHA-256 verification failed');
+  } catch (error) {
+    if (error && error.code === 'ENOENT') throw componentError('componentRemoved', 'Downloaded component was removed before use');
+    throw error;
+  }
 }
 
 function componentError(code, message) { return Object.assign(new Error(message), { code }); }
@@ -122,4 +174,4 @@ async function ensureLumenite(cacheRoot) {
   return root;
 }
 
-module.exports = { LUMENITE, DGVOODOO, ensureLumenite, ensureDgVoodoo, missingVCRuntime, digest, download, fetchBytes, fetchVerified, cached };
+module.exports = { LUMENITE, DGVOODOO, DGVOODOO_VERSIONS, dgVoodooRelease, ensureLumenite, ensureDgVoodoo, missingVCRuntime, digest, download, fetchBytes, fetchVerified, cached };

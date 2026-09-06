@@ -33,12 +33,14 @@ function validatePayload(root) {
 async function ensureOptiScaler(cacheRoot) {
   const base = path.join(path.resolve(cacheRoot), 'components', `OptiScaler-${RELEASE.version}`);
   const archive = base + '.zip';
-  if (!cached(archive, RELEASE.sha256)) await fetchVerified(RELEASE.url, RELEASE.sha256, archive);
+  if (!fs.existsSync(archive) || digest(archive) !== RELEASE.sha256) await download(RELEASE.url, archive, RELEASE.sha256);
+  if (digest(archive) !== RELEASE.sha256) throw fail('errOptiPayload');
   // Re-extract verified bytes on every install. The installer below copies an
   // explicit file list, not unknown files that may have appeared in the cache.
   await extractZip(archive, { dir: base });
   const license = path.join(base, 'OptiScaler-GPL-3.0.txt');
-  if (!cached(license, RELEASE.licenseHash)) await fetchVerified(RELEASE.licenseUrl, RELEASE.licenseHash, license);
+  if (!fs.existsSync(license) || digest(license) !== RELEASE.licenseHash) await download(RELEASE.licenseUrl, license, RELEASE.licenseHash);
+  if (digest(license) !== RELEASE.licenseHash) throw fail('errOptiPayload');
   validatePayload(base);
   return base;
 }
