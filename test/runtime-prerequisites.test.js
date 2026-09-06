@@ -6,6 +6,26 @@ const os = require('os');
 const path = require('path');
 const { missingVCRuntime } = require('../src/core/runtime-components');
 
+test('dgVoodoo2 downloads the selected official release and rejects unverified bytes', async t => {
+  const { ensureDgVoodoo, DGVOODOO_VERSIONS } = require('../src/core/runtime-components');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dlss5-dg-download-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const urls = [];
+  t.mock.method(globalThis, 'fetch', async url => {
+    urls.push(url);
+    return { ok: true, arrayBuffer: async () => Buffer.from('unverified archive') };
+  });
+  for (const release of DGVOODOO_VERSIONS) {
+    await assert.rejects(ensureDgVoodoo(root, release.version), /SHA-256/);
+    assert.equal(urls.at(-1), release.url);
+    assert.equal(fs.existsSync(path.join(root, 'components', `dgVoodoo2-${release.version}.zip`)), false);
+    assert.equal(fs.existsSync(path.join(root, 'components', `dgVoodoo2-${release.version}`)), false);
+  }
+  const count = urls.length;
+  await assert.rejects(ensureDgVoodoo(root, '../unknown'), /Unsupported/);
+  assert.equal(urls.length, count);
+});
+
 function dll(file, bitness) {
   const bytes = Buffer.alloc(4096);
   bytes.writeUInt16LE(0x5a4d, 0);
