@@ -28,7 +28,7 @@ function minimalPe32(file, marker = null) {
   minimalPe(file, { bitness: 32, marker });
 }
 
-test('DX8 games, SWTOR x64 DX9 and unsupported DX10 retain their real API', async (t) => {
+test('DX8 games, SWTOR x64 DX9 and DX10 retain their real API', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dlss5-legacy-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   for (const [name, bitness, marker, api] of [
@@ -61,7 +61,7 @@ test('Far Cry 3-style D3D11 executable is found and identified as 32-bit', async
   assert.equal(scan.chosen.bitness, 32);
 });
 
-test('explicit legacy renderer suffixes preserve DX8 and unsupported DX10', async (t) => {
+test('explicit legacy renderer suffixes preserve DX8 and DX10', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dlss5-api-suffix-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   for (const api of ['d3d8', 'd3d10']) {

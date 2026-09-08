@@ -832,6 +832,7 @@ async function openSheet(dir, keepLog = false) {
         ${pick ? spec(t('fArchitecture'), `${pick.bitness || '?'}-bit`) : ''}
         ${spec(t('fApi'), esc((pick && selectedApi(pick, dir).label) || reasonText(d.reason) || '—'), pick && selectedApi(pick, dir).api === 'dxgi' ? 'on' : 'off')}
         ${spec(t('installedBackend'), esc(d.installedRoute === 'optiscaler' ? 'OptiScaler DLSS-NR' : d.installedRoute ? 'ReShade' : t('none')), d.installedRoute ? 'on' : 'off')}
+        ${d.installedFeederVersion ? spec(t('installedFeederVersion'), `v${esc(d.installedFeederVersion)}`, 'on') : ''}
         ${spec('DLSS', pick && selectedRoute(d, pick, dir) === 'optiscaler' ? esc(inGameDlss || t('none')) : dlssValue(inGameDlss, d.newDlss, upToDate))}
         ${d.optiscaler ? spec('OptiScaler', esc(d.optiscaler.installed ? d.optiscaler.version : t('notInstalled')), d.optiscaler.installed ? 'on' : 'off') : ''}
         ${spec(t('fAddon'), esc(d.addon ? t('installed') : t('notPresent')), d.addon ? 'on' : 'off')}

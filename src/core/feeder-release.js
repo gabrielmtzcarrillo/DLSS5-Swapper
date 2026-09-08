@@ -26,6 +26,16 @@ module.exports = {
 module.exports.VERSIONS = [
   module.exports,
   {
+    version: '0.13.1-beta.1',
+    archive: ['DLSS5-Feeder-0.13.1-beta.1.zip', 'https://github.com/jlrouzies-fr/DLSS5-Feeder/releases/download/v0.13.1-beta.1/DLSS5-Feeder-0.13.1-beta.1.zip', '8da626ed906a29289f001cb613640015360e36b0c3478348bf097a304b34bb18'],
+    hashes: {
+      'dlss5-feed.addon32': '46586421a0097a8ad57d14d45a66331011ee38196856e6c906808bee8756beda',
+      'dlss5-feed.addon64': 'f01233a44f46d770cfce58b6cb9751038ccf55695aaee8133dfa850398ae9934f',
+      'dlss5-feed-host64.exe': '896cd4b3f0ebbe0054b6284c146c915e2f123b9b12f6eea6ab7169b01aa8a9d3',
+      'reshade-shaders/Shaders/DLSS5_Feed.fx': '491815122018d17d460f02adc0e5f03abb6e7489e3b8136ba003927ee06858e9'
+    }
+  },
+  {
     version: '0.14.0-beta.4',
     archive: ['DLSS5-Feeder-0.14.0-beta.4.zip', 'https://github.com/jlrouzies-fr/DLSS5-Feeder/releases/download/v0.14.0-beta.4/DLSS5-Feeder-0.14.0-beta.4.zip', '7ee5d63e0674129e263d991c167466ea38909ff9358c2f07eb02a13cef70933f'],
     hashes: {
@@ -38,3 +48,17 @@ module.exports.VERSIONS = [
 ];
 
 module.exports.release = version => module.exports.VERSIONS.find(item => item.version === version) || module.exports;
+
+// Feeder's private D3D11 relay, used for native DX10 targets, was introduced
+// after the stable 0.12.0 build. Keep the check here so every install route
+// uses the same compatibility rule.
+module.exports.supportsDx10 = version => {
+  const match = String(version || '').match(/^(\d+)\.(\d+)\.(\d+)/);
+  if (!match) return false;
+  const actual = match.slice(1).map(Number);
+  const required = [0, 13, 1];
+  for (let i = 0; i < required.length; i++) {
+    if (actual[i] !== required[i]) return actual[i] > required[i];
+  }
+  return true;
+};

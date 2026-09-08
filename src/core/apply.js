@@ -14,6 +14,7 @@ const feederConfig = require('./feeder-config');
 const vulkanLayer = require('./vulkan-layer');
 const journal = require('./file-journal');
 const compatibility = require('./compatibility');
+const feederReleases = require('./feeder-release');
 const crypto = require('crypto');
 
 const BACKUP_DIR = '_DLSS5_Backup';
@@ -420,7 +421,13 @@ async function applyFeeder(config, log) {
   if (!feederReady) {
     throw fail('errFeederSupportMissing');
   }
-  if (!['dxgi', 'd3d8', 'd3d9', 'opengl', 'vulkan'].includes(api) || (api === 'd3d8' && bitness !== 32)) {
+  if (api === 'd3d10' && (bitness !== 32 || !feederReleases.supportsDx10(source.feeder.version))) {
+    throw fail('unsupportedRendererHint', { version: source.feeder.version || 'unknown' });
+  }
+  // Feeder's DX10 path uses its private D3D11 relay. ReShade still loads
+  // through the DXGI hook, so this follows the same installation layout as
+  // DX11 while retaining the explicit d3d10 API selection for setup.
+  if (!['dxgi', 'd3d10', 'd3d8', 'd3d9', 'opengl', 'vulkan'].includes(api) || (api === 'd3d8' && bitness !== 32)) {
     throw fail('errFeederApiUnsupported', { api, bitness });
   }
   if (api === 'vulkan' && (!source.feeder.vulkanOk || !vulkanLayerTarget)) {

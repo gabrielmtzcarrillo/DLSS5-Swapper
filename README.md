@@ -210,11 +210,11 @@ real panel, not a colour swatch.
 | **ReShade / Feeder GPUs** | RTX 20 / 30 / 40 / 50; older-series support is reported by the bundled modified runtime's author |
 | **OptiScaler GPUs** | 64-bit games with native DLSS enabled. The bundled neural model runs on **Blackwell** (RTX 50 / RTX PRO Blackwell); an older card needs a modded `nvngx_dlssnr.dll` you supply, which is never overwritten. Driver **616.56** recommended |
 | **DirectX 12** | Native DLSS, Feeder, or eligible OptiScaler games |
+| **DirectX 10** | 32-bit Feeder through its private D3D11 relay; experimental |
 | **DirectX 11** | Feeder for 32/64-bit games; eligible OptiScaler games |
 | **DirectX 9 / 8** | DX9: 32/64-bit; DX8: 32-bit, through dgVoodoo2 → DX11 → Feeder |
 | **Vulkan / OpenGL** | ReShade/Feeder; eligible Vulkan games can also use OptiScaler |
-| **DirectX 10** | Not directly supported by Feeder; choose DX11 when available |
-| **In-game overlay** | 64-bit DirectX 11 / 12 games with ReShade add-on support; **DLSS5-Feeder and RenoDX v4.7 only** |
+| **In-game overlay** | 64-bit DirectX 10 / 11 / 12 games with ReShade add-on support; **DLSS5-Feeder and RenoDX v4.7 only** |
 
 OptiScaler's DX11/Vulkan path uses a DX12 bridge with FSR output by default.
 For Vulkan backend changes, **restore originals first**. OptiScaler is not the emulator/non-DLSS route.

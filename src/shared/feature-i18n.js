@@ -68,7 +68,7 @@ const catalog = {
     "errProcessCheck": "Could not verify that the game is closed. Restart the app and retry; no installation was started.",
     "errJobBusy": "Another installation or restore is in progress. Wait for it to finish.",
     "errBackendRecovery": "An interrupted switch needs recovery. Close the game, then click Restore originals. Keep the backup folder intact.",
-    "unsupportedRendererHint": "Native DirectX 10 is not supported by Feeder. Select the game’s DirectX 11 mode if available. This renderer cannot be installed automatically.",
+    "unsupportedRendererHint": "DirectX 10 uses Feeder through its private D3D11 relay. Compatibility is experimental; DirectX 11 may be more reliable when available.",
     "legacyRendererHint": "DX8/9 requires dgVoodoo2 → DirectX 11. The matching wrapper is downloaded from its official source on first install. Disable MSAA/SSAA in the game if depth is unavailable.",
     "runtimeRequiredHint": "Install or repair the official Microsoft Visual C++ runtime, then retry. 32-bit games need both x86 and x64.",
     "legacyDownloadHint": "The official dgVoodoo2 download could not be verified. Check your connection and retry; the existing installation was not changed.",

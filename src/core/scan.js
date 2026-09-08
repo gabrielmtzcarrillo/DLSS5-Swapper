@@ -551,6 +551,7 @@ async function scanGame(gameDir) {
         api: data.game && data.game.api,
         exe: data.game && data.game.exe,
         previousReShadeRoute: data.previousReShadeRoute || null,
+        feederVersion: data.route === 'feeder' && data.feeder ? data.feeder.version || null : null,
         optiscaler: data.route === 'optiscaler' ? data.optiscaler : null,
         added: Array.isArray(data.added) ? data.added.filter(item => typeof item === 'string') : [],
         vulkanLayer: data.vulkanLayer || null

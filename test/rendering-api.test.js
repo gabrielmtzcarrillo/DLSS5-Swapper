@@ -34,6 +34,7 @@ test('manual DX11/DX12 use dxgi but route eligibility follows the selected label
     assert.deepEqual(routes.routesFor(api.effective(target, 'vulkan')), ['feeder', 'optiscaler']);
   }
   assert.deepEqual(routes.routesFor(api.effective({ bitness: 32 }, 'd3d12')), ['feeder']);
+  assert.deepEqual(routes.routesFor(api.effective({ bitness: 32 }, 'd3d10')), ['feeder']);
   assert.deepEqual(routes.routesFor(api.effective({ bitness: 64, emulator: {} }, 'd3d12')), ['feeder']);
 });
 

@@ -24,7 +24,8 @@ const S = {
   en: {
     setDgVoodooVersion: 'dgVoodoo2 version',
     setFeederVersion: 'DLSS5-Feeder version',
-    setFeederHint: 'Select the Feeder release used on the next Apply / Install. Stable 0.12.0 is recommended; beta releases may be less compatible.',
+    setFeederHint: 'Select the Feeder release used on the next Apply / Install. 32-bit DX10 requires 0.13.1-beta.1 or newer; 0.14.0-beta.4 is also compatible.',
+    installedFeederVersion: 'Installed Feeder',
     setDgVoodooHint: 'Official download for DX8/9 games. Used on the next Apply / Install; existing installations change only when reapplied.',
     antiCheatWarningTitle: 'Warning: anti-cheat detected',
     antiCheatWarning: 'This game appears to use anti-cheat. ReShade, Feeder or OptiScaler may cause crashes, prevent launch, or result in an account ban. Installation is optional: click Install and explicitly accept the risks to continue. Anti-cheat will not be disabled or bypassed.',
@@ -66,7 +67,7 @@ const S = {
     navHome: 'Home', navGames: 'Games', navHistory: 'History', navSettings: 'Settings', navAbout: 'About',
     navOverlay: 'Overlay',
     ready: 'Ready', scanning: 'Scanning…', fetchingArt: 'Fetching art…',
-    unsupportedRendererHint: 'Native DirectX 10 is not supported by Feeder. Select the game’s DirectX 11 mode if available. This renderer cannot be installed automatically.',
+    unsupportedRendererHint: 'DirectX 10 uses the Feeder route through its private D3D11 relay. Compatibility is experimental; if the game offers DirectX 11, that mode may be more reliable.',
     legacyRendererHint: 'DX8/9 requires dgVoodoo2 → DirectX 11. The matching wrapper is downloaded from its official source on first install. Disable MSAA/SSAA in the game if depth is unavailable.',
     runtimeRequiredHint: 'Install or repair the official Microsoft Visual C++ runtime, then retry. 32-bit games need both x86 and x64.',
     legacyDownloadHint: 'The official dgVoodoo2 download could not be verified. Check your connection and retry; the existing installation was not changed.',

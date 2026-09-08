@@ -3,9 +3,9 @@ const fs=require('node:fs'),path=require('node:path');
 const {readNative}=require('./overlays');
 // Refuse unsupported routes BEFORE the game installer changes files. OptiScaler
 // and the x86 helper architecture are deliberately not advertised as supported.
-function routes(target){return target?.bitness===64&&target.api==='dxgi'&&target.apiLabel!=='DirectX 10'?['native','feeder']:[];}
+function routes(target){return target?.bitness===64&&(target.api==='dxgi'||target.api==='d3d10')?['feeder',...(target.apiLabel==='DirectX 10'?[]:['native'])]:[];}
 function prepare({library,target,route}){
-  if(!routes(target).includes(route))throw Error('The in-game overlay currently supports 64-bit DX11/DX12 only.');
+  if(!routes(target).includes(route))throw Error('The in-game overlay currently supports 64-bit DX10/DX11/DX12 Feeder routes.');
   const entry=library.resolve('builtin');
   if(!entry.ready)throw Error(`The overlay add-on is missing from this app: ${entry.file}. Antivirus software removes it; restore it and add an exclusion, or reinstall DLSS 5 Swapper.`);
   readNative(entry.file);

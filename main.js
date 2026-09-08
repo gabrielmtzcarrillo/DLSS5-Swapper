@@ -959,6 +959,7 @@ ipcMain.handle('details', async (_event, dir) => {
     via: scan.chosen ? scan.chosen.via : null,
     emulator: scan.emulator,
     installedRoute: scan.install && scan.install.route,
+    installedFeederVersion: scan.install && scan.install.feederVersion,
     antiCheatWarning: compatibility.hasAntiCheat(dir, scan.chosen?.path),
     installedApi: scan.install && scan.install.api,
     installedExe: scan.install && scan.install.exe,
