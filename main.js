@@ -14,6 +14,8 @@ const { contextForSteamGame, createSetupRunner } = require('./src/core/proton');
 const art = require('./src/steamart');
 const { backupRoot, saveActiveManifest, writeTracked } = require('./src/core/apply.js');
 const { scanSource } = require('./src/core/scan.js');
+const feederReleases = require('./src/core/feeder-release.js');
+const FEEDER_VERSIONS = Array.isArray(feederReleases.VERSIONS) ? feederReleases.VERSIONS : [feederReleases];
 const pe = require('./src/core/pe.js');
 const { ensureLumenite, ensureDgVoodoo, missingVCRuntime, DGVOODOO_VERSIONS, dgVoodooRelease } = require('./src/core/runtime-components.js');
 // A component that downloaded and verified, then vanished before it could be
@@ -184,7 +186,8 @@ function payload(raw) {
   // Installed, the payload rides along as an extra resource; from source it
   // sits beside main.js.
   for (const dir of [path.join(process.resourcesPath || '', 'payload'), path.join(__dirname, 'payload')]) {
-    const probe = scanSource(dir);
+    const selectedFeeder = loadState().feederVersion;
+    const probe = scanSource(dir, selectedFeeder);
     if (probe.ok) {
       const setup = fs.readdirSync(dir).find((f) => /^ReShade_Setup_.*_Addon\.exe$/i.test(f));
       // Point at the chosen build instead of copying files around: the payload
@@ -233,6 +236,7 @@ function readState() {
 // Share state across handlers awaiting I/O; preserve the existing JSON shape.
 let cachedState;
 let stateWrites = Promise.resolve(true);
+let stateGeneration = 0;
 function loadState() {
   if (cachedState) return cachedState;
   try {
@@ -243,13 +247,14 @@ function loadState() {
   return cachedState;
 }
 
-function saveState(state) {
+function saveState(state, generation = stateGeneration) {
   // A handler that built its own object still becomes the live one.
   if (state && state !== cachedState) cachedState = state;
   const file = stateFile();
   const json = JSON.stringify(cachedState);
   // Serialize asynchronous writes, replacing the file only when complete.
   stateWrites = stateWrites.then(async () => {
+    if (generation !== stateGeneration) return true;
     try {
       await fs.promises.mkdir(path.dirname(file), { recursive: true });
       await fs.promises.writeFile(file + '.tmp', json, 'utf8');
@@ -459,6 +464,8 @@ ipcMain.handle('settings', () => {
     roots: lastRoots,
     dgVoodooVersions: DGVOODOO_VERSIONS.map(item => item.version),
     dgVoodooVersion: dgVoodooRelease(state.dgVoodooVersion).version,
+    feederVersions: FEEDER_VERSIONS.map(item => item.version),
+    feederVersion: (feederReleases.release ? feederReleases.release(state.feederVersion) : FEEDER_VERSIONS[0]).version,
     excludedRoots: state.excludedRoots || [],
     hidden: [...(state.hidden || [])],
     autoScanDrives: state.autoScanDrives === true,
@@ -470,6 +477,15 @@ ipcMain.handle('set-dgvoodoo-version', async (_event, version) => {
   const selected = dgVoodooRelease(version).version;
   const state = loadState();
   state.dgVoodooVersion = selected;
+  await saveState(state);
+  return selected;
+});
+
+ipcMain.handle('set-feeder-version', async (_event, version) => {
+  const selected = FEEDER_VERSIONS.find(item => item.version === version)?.version;
+  if (!selected) throw new Error('Unsupported DLSS5-Feeder version');
+  const state = loadState();
+  state.feederVersion = selected;
   await saveState(state);
   return selected;
 });
@@ -541,6 +557,7 @@ ipcMain.handle('library', () => {
 // the grid fills in as they land.
 ipcMain.handle('scan', async (_event, dir) => {
   const state = loadState();
+  const generation = stateGeneration;
   const key = keyFor(dir);
   try {
     const scan = await scanGame(dir);
@@ -564,7 +581,9 @@ ipcMain.handle('scan', async (_event, dir) => {
     };
     state.scans = state.scans || {};
     state.scans[key] = result;
-    await saveState(state);
+    // A reset during discovery invalidates this operation completely. Do not
+    // let its late result repopulate the freshly reset library.
+    if (generation === stateGeneration) await saveState(state, generation);
     return result;
   } catch (err) {
     return { ok: false, api: null, dx12: false, reason: 'error', error: err.message };
@@ -664,6 +683,7 @@ ipcMain.handle('unhide', (_event, dir) => {
 });
 
 ipcMain.handle('reset', async () => {
+  stateGeneration++;
   cachedState = { folders: [], excludedRoots: [], manual: [], posters: {}, hidden: [], scans: {} };
   const file = stateFile();
   stateWrites = stateWrites.then(async () => {

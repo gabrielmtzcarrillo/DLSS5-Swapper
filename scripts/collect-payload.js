@@ -8,7 +8,7 @@ const os = require('os');
 const crypto = require('crypto');
 const extractZip = require('extract-zip');
 const { execFileSync } = require('child_process');
-const feederRelease = require('../src/core/feeder-release');
+const feederReleases = require('../src/core/feeder-release');
 
 const ROOT = path.resolve(__dirname, '..');
 const PAYLOAD = path.join(ROOT, 'payload');
@@ -17,7 +17,6 @@ const CACHE = path.join(ROOT, 'vendor', 'component-cache');
 // Pinned downloads keep release builds reproducible and are SHA-256 checked
 // before a single file is copied into the application payload.
 const COMPONENTS = {
-  feeder: feederRelease.archive,
   feederLicense: ['DLSS5-Feeder-LICENSE.txt', 'https://raw.githubusercontent.com/jlrouzies-fr/DLSS5-Feeder/v0.7.0/LICENSE', '6562d5a5e3d7534711e34f4b34335f23f067acc839ae5274c1250bf5f4654b8b'],
   vort: ['vort_Shaders-b410b9f.zip', 'https://codeload.github.com/vortigern11/vort_Shaders/zip/b410b9f0c0fbb83c8cb42164aaf1655fab386f4a', '231ba34a75556f9943e359559a89b0d0cc2caa322d9dcdee5630061bf9fe13b6'],
   reshadeHeader: ['ReShade.fxh', 'https://raw.githubusercontent.com/crosire/reshade-shaders/ee30868391d4ad103db60489820102d8fd40e3c1/Shaders/ReShade.fxh', '6dabfbbaf968c3871905d2ea17f96572ff7b1cec01310b5d0e5252b66b30174f'],
@@ -135,10 +134,10 @@ function findHostAddon(sourceDir) {
   return null;
 }
 
-async function collectFeeder(source) {
+async function collectFeeder(source, feederRelease) {
   console.log(`\nDLSS5-Feeder v${feederRelease.version} (matching 32/64-bit clients and host):`);
-  const feeder = path.join(PAYLOAD, 'feeder');
-  const upstream = await extracted(COMPONENTS.feeder, `feeder-${feederRelease.version}`);
+  const feeder = path.join(PAYLOAD, `feeder-${feederRelease.version}`);
+  const upstream = await extracted(feederRelease.archive, `feeder-${feederRelease.version}`);
   for (const [rel, expected] of Object.entries(feederRelease.hashes)) {
     const src = path.join(upstream, rel === 'dlss5-feed-host64.exe' ? 'host64/dlss5-feed-host64.exe' : rel);
     if (sha256(src) !== expected) throw new Error(`Feeder release mismatch: ${rel}`);
@@ -307,7 +306,7 @@ for (const name of ['ReShade64.dll', 'ReShade64.json', 'ReShade32.dll', 'ReShade
   copyFile(path.join(reshadeExtract, name), path.join(PAYLOAD, 'reshade-vulkan', name));
 }
 
-await collectFeeder(source);
+  for (const feederRelease of feederReleases.VERSIONS) await collectFeeder(source, feederRelease);
 
 const total = fs
   .readdirSync(PAYLOAD, { recursive: true })

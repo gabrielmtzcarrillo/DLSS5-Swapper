@@ -424,6 +424,11 @@ async function renderSettings() {
       <select class="ghost sm" id="setDgVoodooVersion" aria-describedby="setDgVoodooHint">
         ${info.dgVoodooVersions.map(version => `<option value="${esc(version)}" ${version === info.dgVoodooVersion ? 'selected' : ''}>v${esc(version)}</option>`).join('')}
       </select></div>
+    <div class="set-row"><div><label class="k" for="setFeederVersion">${t('setFeederVersion')}</label>
+      <div class="v" id="setFeederHint">${t('setFeederHint')}</div></div>
+      <select class="ghost sm" id="setFeederVersion" aria-describedby="setFeederHint">
+        ${info.feederVersions.map(version => `<option value="${esc(version)}" ${version === info.feederVersion ? 'selected' : ''}>v${esc(version)}</option>`).join('')}
+      </select></div>
     <div class="set-row"><div><div class="k">${t('setGroupGames')}</div>
       <div class="v" id="setGroupGamesHint">${t('setGroupGamesHint')}</div></div>
       <button class="setting-switch" id="setGroupGames" type="button" role="switch"
@@ -479,6 +484,13 @@ async function renderSettings() {
     } finally {
       select.disabled = false;
     }
+  };
+  $('setFeederVersion').onchange = async () => {
+    const select = $('setFeederVersion');
+    select.disabled = true;
+    try { info.feederVersion = await window.lab.setFeederVersion(select.value); }
+    catch (error) { select.value = info.feederVersion; log(error.message); }
+    finally { select.disabled = false; }
   };
   $('setGroupGames').onclick = async () => {
     const toggle = $('setGroupGames');
@@ -720,6 +732,9 @@ function installOptions(d, pick, dir) {
       ${!opti && ['d3d8', 'd3d9'].includes(api.api) ? `<label><span>${t('setDgVoodooVersion')}</span><select id="installDgVoodooVersion" aria-describedby="installDgVoodooHint">
         ${d.dgVoodooVersions.map(version => `<option value="${esc(version)}"${version === d.dgVoodooVersion ? ' selected' : ''}>v${esc(version)}</option>`).join('')}
       </select></label>` : ''}
+      ${!opti && routes.includes('feeder') ? `<label><span>${t('setFeederVersion')}</span><select id="installFeederVersion" aria-describedby="installFeederHint">
+        ${d.feederVersions.map(version => `<option value="${esc(version)}"${version === d.feederVersion ? ' selected' : ''}>v${esc(version)}</option>`).join('')}
+      </select></label>` : ''}
     </div>
     ${apiHint}
     <div class="emu-note backend-note" id="backendHint"><span>${t(opti ? 'optiHint' : 'backendHint')}</span>
@@ -731,6 +746,7 @@ function installOptions(d, pick, dir) {
     ${pick.installIssue ? `<div class="emu-note compatibility-warning" role="alert">${t(pick.installIssue)}</div>` : ''}
     ${warning}
     ${['d3d8', 'd3d9'].includes(api.api) ? `<div class="emu-note" id="installDgVoodooHint"><span>${t('setDgVoodooHint')}</span><span>${t('legacyRendererHint')}</span></div>` : ''}
+    ${!opti && routes.includes('feeder') ? `<div class="emu-note" id="installFeederHint"><span>${t('setFeederHint')}</span></div>` : ''}
     ${pick.emulator ? `<div class="emu-note"><b>${esc(pick.emulator.name)} · ${esc(pick.emulator.system)}</b><span>${esc(pick.emulator.hint)}</span><span>${t('emulatorDepthHint')}</span>${pick.emulator.key === 'xenia' ? `<span>${t('xeniaUiHint')}</span>` : ''}</div>` : ''}`;
 }
 
@@ -771,6 +787,8 @@ async function openSheet(dir, keepLog = false) {
   if (sheetGame !== g) return;
   d.dgVoodooVersions = settings.dgVoodooVersions;
   d.dgVoodooVersion = settings.dgVoodooVersion;
+  d.feederVersions = settings.feederVersions;
+  d.feederVersion = settings.feederVersion;
   sheetDetails = d;
   if (!exeChoice.has(dir) && d.installedExe) {
     const installed = d.exes.find((item) => item.rel.toLowerCase() === String(d.installedExe).toLowerCase());
@@ -847,6 +865,16 @@ async function openSheet(dir, keepLog = false) {
     if (sheetGame?.dir === dir) {
       await openSheet(dir, true);
       $('installDgVoodooVersion')?.focus();
+    }
+  };
+  const feederSelect = $('installFeederVersion');
+  if (feederSelect) feederSelect.onchange = async () => {
+    document.querySelectorAll('#sheet select, #doInstall, #doRestore, #exeSelect').forEach(e => { e.disabled = true; });
+    try { await window.lab.setFeederVersion(feederSelect.value); }
+    catch (error) { jobLog(error.message); }
+    if (sheetGame?.dir === dir) {
+      await openSheet(dir, true);
+      $('installFeederVersion')?.focus();
     }
   };
   const apiSelect = $('apiChoice');

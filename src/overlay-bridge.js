@@ -48,6 +48,10 @@ module.exports = async function startOverlayBridge({ BrowserWindow, userData, on
   win = new BrowserWindow({ show: false, width: protocol.WIDTH, height: 900, transparent: true, frame: false,
     webPreferences: { preload: path.join(__dirname, '../overlay-preload.js'), offscreen: true, contextIsolation: true, sandbox: true, nodeIntegration: false, backgroundThrottling: false, spellcheck: false } });
   } catch (error) { clearTimeout(timer); throw diagnostic(error); }
+  // Electron webContents is an EventEmitter. Small headless callers may only
+  // provide the subset needed to host the pipe; they cannot produce a paint
+  // event and should not be held hostage by the first-frame timeout.
+  const canObservePaint = typeof win.webContents.emit === 'function';
   const preferenceChanged=(dir,value)=>{if(dir===userData&&!closed&&!win.isDestroyed())win.webContents.send('lab-overlay-preferences',value);};
   const control = (event, command) => {
     if (closed || !client || event.sender !== win.webContents) return;
@@ -130,7 +134,7 @@ module.exports = async function startOverlayBridge({ BrowserWindow, userData, on
   ready = true;
   stage = 'first-frame';
   win.webContents.invalidate();
-  await wait(frameReady);
+  if (canObservePaint) await wait(frameReady);
   stage = 'listen-pipe';
   server = net.createServer(socket => {
     // One test game at a time: a second process must not alter its controls.

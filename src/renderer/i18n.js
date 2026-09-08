@@ -23,6 +23,8 @@ const LANGS = [
 const S = {
   en: {
     setDgVoodooVersion: 'dgVoodoo2 version',
+    setFeederVersion: 'DLSS5-Feeder version',
+    setFeederHint: 'Select the Feeder release used on the next Apply / Install. Stable 0.12.0 is recommended; beta releases may be less compatible.',
     setDgVoodooHint: 'Official download for DX8/9 games. Used on the next Apply / Install; existing installations change only when reapplied.',
     antiCheatWarningTitle: 'Warning: anti-cheat detected',
     antiCheatWarning: 'This game appears to use anti-cheat. ReShade, Feeder or OptiScaler may cause crashes, prevent launch, or result in an account ban. Installation is optional: click Install and explicitly accept the risks to continue. Anti-cheat will not be disabled or bypassed.',

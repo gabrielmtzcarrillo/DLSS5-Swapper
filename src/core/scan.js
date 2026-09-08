@@ -8,7 +8,7 @@ const path = require('path');
 const pe = require('./pe');
 const emulators = require('./emulators');
 const crypto = require('crypto');
-const feederRelease = require('./feeder-release');
+const feederReleases = require('./feeder-release');
 const { safePath } = require('./file-journal');
 
 const SKIP_DIRS = new Set([
@@ -590,7 +590,7 @@ async function scanGame(gameDir) {
 }
 
 // Validates the folder holding the new DLSS 5 payload (streamline\ + addon).
-function scanSource(sourceDir) {
+function scanSource(sourceDir, feederVersion) {
   const streamlineDir = fs.existsSync(path.join(sourceDir, 'streamline'))
     ? path.join(sourceDir, 'streamline')
     : sourceDir;
@@ -617,7 +617,14 @@ function scanSource(sourceDir) {
   }));
 
   const nr = payload.find((f) => /^nvngx_dlssnr\.dll$/i.test(f.name));
-  const feederDir = path.join(sourceDir, 'feeder');
+  const feederRelease = feederReleases.release(feederVersion);
+  const versionedDir = path.join(sourceDir, `feeder-${feederRelease.version}`);
+  // Older payloads used the unversioned folder. Keep that compatibility only
+  // for the default release; an explicitly selected release must never be
+  // silently replaced by different Feeder binaries.
+  const feederDir = fs.existsSync(versionedDir) ? versionedDir
+    : (!feederVersion || feederRelease.version === feederReleases.VERSIONS[0].version)
+      ? path.join(sourceDir, 'feeder') : versionedDir;
   const feeder = {
     version: feederRelease.version,
     addon64: path.join(feederDir, 'dlss5-feed.addon64'),

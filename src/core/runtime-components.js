@@ -138,7 +138,7 @@ async function fetchVerified(url, expected, file, deps = {}) {
   } catch (cause) { throw componentError('componentNetwork', cause.message); }
   const received = crypto.createHash('sha256').update(data).digest('hex');
   if (received !== expected) {
-    throw componentError('componentChecksum', `expected ${expected}, received ${received}`);
+    throw componentError('componentChecksum', `Component SHA-256 mismatch: expected ${expected}, received ${received}`);
   }
   await fs.promises.mkdir(path.dirname(file), { recursive: true });
   const temp = file + '.part';
