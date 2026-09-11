@@ -742,7 +742,16 @@ function nativeAddonChoices() {
     const row = describe(resolved, null);
     if (!row) return;
     seen.add(key);
-    found.push({ path: resolved, file: row.file, label: row.file });
+    // Prefer the human-facing release in a versioned filename (for example
+    // renodx-dlss5-v2.5.addon64). The bundled build has its release name in
+    // KNOWN, while third-party files can still fall back to their PE version.
+    const filenameVersion = path.basename(resolved).match(/-v([^.]|\d.*)\.addon(?:64)?$/i)?.[1] || null;
+    found.push({
+      path: resolved,
+      file: row.file,
+      version: filenameVersion || row.version,
+      label: filenameVersion ? `v${filenameVersion}` : (row.label || row.file)
+    });
   };
   const p = payload(true);
   if (p?.source?.addon) add(p.source.addon);

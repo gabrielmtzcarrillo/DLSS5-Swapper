@@ -735,8 +735,8 @@ function installOptions(d, pick, dir) {
       ${!opti && route === 'feeder' ? `<label><span>${t('setFeederVersion')}</span><select id="installFeederVersion" aria-describedby="installFeederHint">
         ${d.feederVersions.map(version => `<option value="${esc(version)}"${version === d.feederVersion ? ' selected' : ''}>v${esc(version)}</option>`).join('')}
       </select></label>` : ''}
-      ${!opti && route === 'native' && pick.bitness === 64 && d.nativeAddons?.length > 1 ? `<label><span>RenoDX DLSS 5 add-on</span><select id="installNativeAddon" aria-describedby="nativeAddonHint">
-        ${d.nativeAddons.map(item => `<option value="${esc(item.path)}">${esc(item.label)}</option>`).join('')}
+      ${!opti && route === 'native' && pick.bitness === 64 && d.nativeAddons?.length > 1 ? `<label><span>${t('setAddonVersion')}</span><select id="installNativeAddon" aria-describedby="nativeAddonHint">
+        ${d.nativeAddons.map(item => `<option value="${esc(item.path)}">${esc(item.label)}${item.version && item.label !== `v${item.version}` ? ` · v${esc(item.version)}` : ''}</option>`).join('')}
       </select></label>` : ''}
     </div>
     ${apiHint}

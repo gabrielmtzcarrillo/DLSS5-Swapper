@@ -24,6 +24,7 @@ const S = {
   en: {
     setDgVoodooVersion: 'dgVoodoo2 version',
     setFeederVersion: 'DLSS5-Feeder version',
+    setAddonVersion: 'RenoDX DLSS 5 add-on version',
     setFeederHint: 'Select the Feeder release used on the next Apply / Install. 32-bit DX10 requires 0.13.1-beta.1 or newer; 0.14.0-beta.4 is also compatible.',
     installedFeederVersion: 'Installed Feeder',
     setDgVoodooHint: 'Official download for DX8/9 games. Used on the next Apply / Install; existing installations change only when reapplied.',
