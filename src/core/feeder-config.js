@@ -186,7 +186,7 @@ function configureDgVoodoo(text) {
   out = setIni(out, 'General', 'CaptureMouse', 'false');
   out = setIni(out, 'DirectX', 'DisableAndPassThru', 'false');
   out = setIni(out, 'DirectX', 'VideoCard', 'internal3D');
-  out = setIni(out, 'DirectX', 'VRAM', '1024');
+  out = setIni(out, 'DirectX', 'VRAM', '4096');
   out = setIni(out, 'DirectX', 'dgVoodooWatermark', 'false');
   return out;
 }

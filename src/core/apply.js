@@ -427,7 +427,7 @@ async function applyFeeder(config, log) {
   // Feeder's DX10 path uses its private D3D11 relay. ReShade still loads
   // through the DXGI hook, so this follows the same installation layout as
   // DX11 while retaining the explicit d3d10 API selection for setup.
-  if (!['dxgi', 'd3d10', 'd3d8', 'd3d9', 'opengl', 'vulkan'].includes(api) || (api === 'd3d8' && bitness !== 32)) {
+  if (!['dxgi', 'd3d10', 'd3d8', 'd3d9', 'ddraw', 'opengl', 'vulkan'].includes(api) || ((api === 'd3d8' || api === 'ddraw') && bitness !== 32)) {
     throw fail('errFeederApiUnsupported', { api, bitness });
   }
   if (api === 'vulkan' && (!source.feeder.vulkanOk || !vulkanLayerTarget)) {
@@ -449,10 +449,10 @@ async function applyFeeder(config, log) {
   // D3D8/9 is translated to D3D11 first. ReShade must then hook DXGI; d3d9.dll
   // belongs to dgVoodoo and using ReShade under that same name would bypass it.
   let reshadeApi = api;
-  if (api === 'd3d8' || api === 'd3d9') {
+  if (api === 'd3d8' || api === 'd3d9' || api === 'ddraw') {
     const dg = source.feeder.dgVoodooDir;
     if (!dg) throw fail('errDgVoodooMissing');
-    const dllName = api === 'd3d8' ? 'D3D8.dll' : 'D3D9.dll';
+    const dllName = api === 'd3d8' ? 'D3D8.dll' : api === 'ddraw' ? 'DDraw.dll' : 'D3D9.dll';
     const officialDll = path.join(dg, 'MS', bitness === 32 ? 'x86' : 'x64', dllName);
     // Retain compatibility with old x86 payload/test layouts, never use that
     // x86 fallback for SWTOR's 64-bit executable.
@@ -461,7 +461,8 @@ async function applyFeeder(config, log) {
     const dgCpl = path.join(dg, 'dgVoodooCpl.exe');
     if (![dgDll, dgConf, dgCpl].every((file) => fs.existsSync(file))) throw fail('errDgVoodooMissing');
     if (pe.getBitness(dgDll) && pe.getBitness(dgDll) !== bitness) throw fail('errReShadeArchitecture');
-    for (const src of [dgDll, dgCpl]) {
+    const immediate = api === 'ddraw' ? path.join(path.dirname(dgDll), 'D3DImm.dll') : null;
+    for (const src of [dgDll, dgCpl, ...(immediate && fs.existsSync(immediate) ? [immediate] : [])]) {
       const rel = await copyTracked(manifest, gameDir, src, path.join(exeDir, path.basename(src)), { kind: 'dgvoodoo' });
       log('added', { rel, version: pe.getFileVersion(src) });
     }
@@ -660,7 +661,9 @@ async function applySwap(config, onLog) {
 
   const scan = await scanGame(gameDir);
   const manifest = beginManifest(gameDir, exePath, api);
-  manifest.route = 'native';
+  const multipass = config.route === 'renodx';
+  if (multipass && (!source.feeder?.multipassAddon || !fs.existsSync(source.feeder.multipassAddon))) throw fail('errMultipassMissing');
+  manifest.route = multipass ? 'renodx' : 'native';
   manifest.game.apiLabel = config.apiLabel;
   const setup = setupRunner || runSetup;
 
@@ -718,8 +721,9 @@ async function applySwap(config, onLog) {
   }
 
   // 3) The RenoDX add-on itself.
-  if (source.addon) {
-    const addonName = path.basename(source.addon);
+  const addonSource = multipass ? source.feeder.multipassAddon : source.addon;
+  if (addonSource) {
+    const addonName = path.basename(addonSource);
     const dest = path.join(exeDir, addonName);
     const rel = path.relative(gameDir, dest);
     if (fs.existsSync(dest)) {
@@ -728,12 +732,12 @@ async function applySwap(config, onLog) {
       rememberReplacement(manifest, {
         rel,
         oldVersion: pe.getFileVersion(dest),
-        newVersion: pe.getFileVersion(source.addon)
+        newVersion: pe.getFileVersion(addonSource)
       });
     } else {
       rememberAdded(manifest, rel);
     }
-    await copyTracked(manifest, gameDir, source.addon, dest, { kind: 'addon' });
+    await copyTracked(manifest, gameDir, addonSource, dest, { kind: 'addon' });
     log('addonInstalled', { name: addonName });
   }
 
@@ -837,7 +841,7 @@ async function applySwap(config, onLog) {
     if (setupIsNewer) log('reshadeNewerAvailable', { version: setupVersion });
   }
 
-  if (source.addon) await enableAddonInIni(exeDir, path.basename(source.addon), log, gameDir, manifest);
+  if (addonSource) await enableAddonInIni(exeDir, path.basename(addonSource), log, gameDir, manifest);
 
   await saveActiveManifest(gameDir, manifest);
 

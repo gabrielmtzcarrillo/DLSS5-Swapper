@@ -978,6 +978,7 @@ ipcMain.handle('update-check', async () => {
 });
 ipcMain.handle('details', async (_event, dir) => {
   const detailsPayload = payload();
+  const multipassAvailable = Boolean(detailsPayload?.source?.feeder?.multipassAddon && fs.existsSync(detailsPayload.source.feeder.multipassAddon));
   const scan = await scanGame(dir);
   const state = loadState();
   const hasNativeDlss = installRoutes.nativeDlssPresent(scan);
@@ -1009,6 +1010,7 @@ ipcMain.handle('details', async (_event, dir) => {
       installIssue: compatibility.targetIssue(dir, e.path),
       antiCheatWarning: compatibility.hasAntiCheat(dir, e.path),
       hasNativeDlss,
+      multipassAvailable,
       apiOverride: apiPreference(state, dir, e.path),
       apiChoices: e.apiChoices || [{ api: e.api, label: e.apiLabel }],
       routes: installRoutes.routesFor({ ...e, hasNativeDlss })
@@ -1067,6 +1069,7 @@ ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, re
   const detected = scan.exeCandidates.find((e) => e.path === exePath) || scan.chosen;
   const selection = requestedApi ?? apiPreference(loadState(), dir, detected.path);
   const target = renderingApi.effective(detected, selection);
+  target.multipassAvailable = Boolean(p.source?.feeder?.multipassAddon && fs.existsSync(p.source.feeder.multipassAddon));
   compatibility.assertSafeTarget(dir, target.path);
   target.hasNativeDlss = installRoutes.nativeDlssPresent(scan);
   const api = target.api;

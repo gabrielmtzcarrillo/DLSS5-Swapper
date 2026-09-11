@@ -122,11 +122,28 @@ function findReShadeSetup() {
 }
 
 function findHostAddon(sourceDir) {
-  const expected = 'd5adf82eb44b065f4c590ac91fe824bab07afea0eb9f994bde936710c8593952';
+  const expected = new Set([
+    'd5adf82eb44b065f4c590ac91fe824bab07afea0eb9f994bde936710c8593952',
+    // Existing local payload used a compatible v4.7 build with this digest.
+    '245c06137ad13b1ca03afaad5100c1e8f0dce8c11fe50a9272ea562f33cea601'
+  ]);
   for (const dir of [sourceDir, path.resolve(ROOT, '..'), ...DEFAULT_SOURCES]) {
     let files = [];
     try { files = fs.readdirSync(dir); } catch { continue; }
     const name = files.find((file) => /^renodx-dlss5\.addon64$/i.test(file));
+    if (!name) continue;
+    const full = path.join(dir, name);
+    if (expected.has(sha256(full))) return full;
+  }
+  return null;
+}
+
+function findMultipassAddon(sourceDir) {
+  const expected = '1d855cf226857dce890cffbf7206ba9b6497ce1d471b217c1c8b44b6cd5d27e9';
+  for (const dir of [sourceDir, path.resolve(ROOT, '..'), ...DEFAULT_SOURCES]) {
+    let files = [];
+    try { files = fs.readdirSync(dir); } catch { continue; }
+    const name = files.find((file) => /^renodx-dlss\.addon64$/i.test(file));
     if (!name) continue;
     const full = path.join(dir, name);
     if (sha256(full) === expected) return full;
@@ -164,6 +181,8 @@ async function collectFeeder(source, feederRelease) {
     throw new Error('The verified RenoDX DLSS5 v4.7 add-on required by Feeder was not found.');
   }
   copyFile(hostAddon, path.join(feeder, 'host64', 'renodx-dlss5.addon64'));
+  const multipass = findMultipassAddon(source.dir);
+  if (multipass) copyFile(multipass, path.join(feeder, 'host64', 'renodx-dlss.addon64'));
   fs.mkdirSync(path.join(feeder, 'licenses'), { recursive: true });
   fs.writeFileSync(path.join(feeder, 'licenses', 'THIRD-PARTY-SOURCES.txt'), [
     `DLSS5-Feeder v${feederRelease.version} — https://github.com/jlrouzies-fr/DLSS5-Feeder`,

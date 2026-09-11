@@ -105,7 +105,7 @@ const API_MARKERS = [
   // is one such layout, so those exports are authoritative D3D12 evidence too.
   'D3D12CreateDevice', 'D3D12SDKPath', 'D3D12SDKVersion',
   'D3D11CreateDevice', 'D3D10CreateDevice',
-  'Direct3DCreate9', 'Direct3DCreate8', 'CreateDXGIFactory', 'vkCreateInstance', 'wglCreateContext'
+  'DirectDrawCreateEx', 'DirectDrawCreate', 'Direct3DCreate9', 'Direct3DCreate8', 'CreateDXGIFactory', 'vkCreateInstance', 'wglCreateContext'
 ];
 
 // A Direct3D DLL sitting beside the executable that is really DXVK or vkd3d:
@@ -127,7 +127,8 @@ const WRAPPED_BY_API = {
   dxgi: ['d3d12.dll', 'd3d11.dll', 'dxgi.dll'],
   d3d10: ['d3d10.dll', 'd3d10_1.dll'],
   d3d9: ['d3d9.dll'],
-  d3d8: ['d3d8.dll']
+  d3d8: ['d3d8.dll'],
+  ddraw: ['ddraw.dll']
 };
 function vulkanWrapperBeside(file, api, bitness) {
   const dir = path.dirname(file);
@@ -146,6 +147,7 @@ function apiFromNames(imports) {
   if (has('vulkan-1.dll')) return { api: 'vulkan', label: 'Vulkan' };
   if (has('d3d9.dll')) return { api: 'd3d9', label: 'DirectX 9' };
   if (has('d3d8.dll')) return { api: 'd3d8', label: 'DirectX 8' };
+  if (has('ddraw.dll')) return { api: 'ddraw', label: 'DirectDraw' };
   if (has('opengl32.dll')) return { api: 'opengl', label: 'OpenGL' };
   return null;
 }
@@ -160,6 +162,7 @@ function apiFromMarkers(file) {
   if (markers.has('CreateDXGIFactory')) return { api: 'dxgi', label: 'DirectX (DXGI)' };
   if (markers.has('Direct3DCreate9')) return { api: 'd3d9', label: 'DirectX 9' };
   if (markers.has('Direct3DCreate8')) return { api: 'd3d8', label: 'DirectX 8' };
+  if (markers.has('DirectDrawCreateEx') || markers.has('DirectDrawCreate')) return { api: 'ddraw', label: 'DirectDraw' };
   if (markers.has('vkCreateInstance')) return { api: 'vulkan', label: 'Vulkan' };
   if (markers.has('wglCreateContext')) return { api: 'opengl', label: 'OpenGL' };
   return null;
@@ -319,7 +322,11 @@ function detectEngineApi(file) {
     'killingfloor.exe': ['D3D9Drv.dll', 'D3DDrv.dll', 'OpenGLDrv.dll'],
     'farcry5.exe': ['FC_m64.dll'],
     'watch_dogs.exe': ['Disrupt_b64.dll'],
-    'kingdomcome.exe': ['WHGame.dll']
+    'kingdomcome.exe': ['WHGame.dll'],
+    'xrengine.exe': ['xrRender_R4.dll', 'xrRender_R3.dll', 'xrRender_R2.dll', 'xrRender_R1.dll'],
+    'portal2.exe': ['bin/shaderapidx9.dll', 'bin/x64/shaderapidx9.dll'],
+    'csgo.exe': ['bin/shaderapidx9.dll'],
+    'garrysmod.exe': ['bin/shaderapidx9.dll', 'bin/win64/shaderapidx9.dll']
   }[path.basename(file).toLowerCase()];
   if (!modules) return null;
   const bitness = pe.getBitness(file);
@@ -332,6 +339,25 @@ function detectEngineApi(file) {
     if (!module || pe.getBitness(module) !== bitness) continue;
     const api = apiFromNames(pe.getImports(module)) || apiFromMarkers(module);
     if (api) return { ...api, via: 'engine-module:' + rel };
+  }
+  return null;
+}
+
+// Some engines load their renderer DLL dynamically and leave no graphics API
+// imports in the executable. Inspect only a shallow, bounded set of game DLLs
+// so an arbitrary tool folder is not mistaken for a playable game.
+function rendererModule(gameDir, budget = 60) {
+  const queue = [[gameDir, 0]];
+  while (queue.length && budget > 0) {
+    const [dir, depth] = queue.shift();
+    let entries = [];
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { continue; }
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) { if (depth < 3) queue.push([full, depth + 1]); continue; }
+      if (!/\.dll$/i.test(entry.name) || budget-- <= 0) continue;
+      try { if (apiFromNames(pe.getImports(full)) || apiFromMarkers(full)) return entry.name; } catch {}
+    }
   }
   return null;
 }
@@ -539,7 +565,7 @@ async function scanGame(gameDir) {
     if (xboxDeclared.length || /(?:^|[\\/])windowsapps(?:[\\/]|$)/i.test(path.resolve(gameDir))) emptyReason = 'xbox-protected';
     else if (looksPacked) emptyReason = 'installer';
     else if (!top.some((f) => f.endsWith('.exe'))) emptyReason = 'no-exe';
-    else emptyReason = 'no-graphics-exe';
+    else emptyReason = rendererModule(gameDir) ? 'renderer-in-dll' : 'no-graphics-exe';
   }
   let install = null;
   const activeManifest = path.join(gameDir, '_DLSS5_Backup', 'manifest.json');
@@ -634,6 +660,7 @@ function scanSource(sourceDir, feederVersion) {
     feedShader: path.join(feederDir, 'reshade-shaders', 'Shaders', 'DLSS5_Feed.fx'),
     shaderRoot: path.join(feederDir, 'reshade-shaders'),
     hostAddon: path.join(feederDir, 'host64', 'renodx-dlss5.addon64'),
+    multipassAddon: path.join(feederDir, 'host64', 'renodx-dlss.addon64'),
     dgVoodooDir: path.join(feederDir, 'dgvoodoo'),
     vulkanLayerDir: path.join(sourceDir, 'reshade-vulkan'),
     // Feeder's interop layer, one folder per architecture, copied beside a

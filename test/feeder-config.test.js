@@ -40,7 +40,7 @@ test('dgVoodoo configuration enables the D3D9 to D3D11 route', () => {
   assert.match(output, /^OutputAPI=d3d11_fl11_0$/m);
   assert.match(output, /^CaptureMouse=false$/m);
   assert.match(output, /^DisableAndPassThru=false$/m);
-  assert.match(output, /^VRAM=1024$/m);
+  assert.match(output, /^VRAM=4096$/m);
   assert.match(output, /^dgVoodooWatermark=false$/m);
 });
 

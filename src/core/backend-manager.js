@@ -18,7 +18,7 @@ function readManifest(gameDir) {
   return manifest;
 }
 function profileFile(gameDir, exePath, api, route) {
-  if (!['native', 'feeder', 'optiscaler'].includes(route)) throw new Error('Invalid route');
+  if (!['native', 'feeder', 'renodx', 'optiscaler'].includes(route)) throw new Error('Invalid route');
   const id = crypto.createHash('sha256').update(`${path.relative(gameDir, exePath).toLowerCase()}|${api}`).digest('hex').slice(0, 24);
   return journal.safePath(gameDir, `_DLSS5_Backup/.profiles/${id}-${route}.json`);
 }
