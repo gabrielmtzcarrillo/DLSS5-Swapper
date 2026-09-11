@@ -55,11 +55,16 @@ module.exports.status = value => {
     result.nrAvailable = value.nrAvailable; result.nrEnabled = value.nrEnabled; result.nrReason = value.nrReason;
   }
   if(value.feedTools!==undefined){
-    if(!Array.isArray(value.feedTools)||value.feedTools.length!==8||typeof value.feedPresent!=='boolean'||typeof value.feedReason!=='string'||value.feedReason.length>180)throw Error('Invalid Feeder status');
+    const versions = ['0.12.0', '0.13.1-beta.1', '0.14.0-beta.4', 'unsupported'];
+    // Older overlay binaries predate feedVersion. Keep their known-good
+    // 0.12.0 controls working, but never infer a beta version from them.
+    const legacy012 = Array.isArray(value.feedTools) && value.feedVersion === undefined && value.feedTools.every(t => t.effect === 'Feeder 0.12.0');
+    const feedVersion = legacy012 ? '0.12.0' : value.feedVersion;
+    if(!Array.isArray(value.feedTools)||value.feedTools.length!==8||typeof value.feedPresent!=='boolean'||typeof feedVersion!=='string'||!versions.includes(feedVersion)||typeof value.feedReason!=='string'||value.feedReason.length>220)throw Error('Invalid Feeder status');
     const checked=module.exports.status({epoch:value.epoch,effects:value.effects,tools:value.feedTools.map((t,i)=>{
-      if(t.id!==301+i||t.kind!==(i===0?1:0)||t.effect!=='Feeder 0.12.0')throw Error('Invalid Feeder tool');return {...t,id:i+1};
+      if(t.id!==301+i||t.kind!==(i===0?1:0)||t.effect!==`Feeder ${feedVersion}`)throw Error('Invalid Feeder tool');return {...t,id:i+1};
     })});
-    result.feedTools=checked.tools.map((t,i)=>({...t,id:301+i}));result.feedPresent=value.feedPresent;result.feedReason=value.feedReason;
+    result.feedTools=checked.tools.map((t,i)=>({...t,id:301+i}));result.feedPresent=value.feedPresent;result.feedVersion=feedVersion;result.feedReason=value.feedReason;
   }
   return result;
 };

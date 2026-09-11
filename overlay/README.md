@@ -56,7 +56,7 @@ ReShade's font or widget theme. **Not NVIDIA's official overlay or SDK.**
 - Games → select a **64-bit DX11/DX12 executable** → **Feeder + Overlay** → Install.
   Restore originals before changing routes. Remove an older standalone
   overlay before installing this build. Keep the app open; press **F8** in-game.
-- Installs the verified Feeder 0.12.0 payload and supplied RenoDX v4.7, plus the
+- Installs the selected verified Feeder payload and supplied RenoDX v4.7, plus the
   overlay beside the actual executable. Main-app files are not modified.
   A failed installation rolls back through the file journal. Newly installed
   overlays join Restore originals; pre-existing standalone overlays do not.
@@ -79,7 +79,11 @@ ReShade's font or widget theme. **Not NVIDIA's official overlay or SDK.**
   of neural image quality or compatibility with every game. **32-bit/helper,
   Vulkan/OpenGL automatic installation and OptiScaler are not supported here.**
 
-Pinned Feeder binary: `066eec8c797df2d656f2ab2324278921b1dd6e9116c9945294f4a00f7fec608a`.
+The F8 adapter accepts only the exact verified x64 Feeder builds selectable in
+the app: 0.12.0, 0.13.1-beta.1, and 0.14.0-beta.4. The reported control effect
+includes the matched version; an unknown or mismatched binary is refused.
+
+Known-good 0.12.0 add-on hash: `066eec8c797df2d656f2ab2324278921b1dd6e9116c9945294f4a00f7fec608a`.
 [Upstream v0.12.0 configuration implementation](https://github.com/jlrouzies-fr/DLSS5-Feeder/blob/v0.12.0/src/dlss5-feed.cpp).
 
 ## RenoDX bridge details

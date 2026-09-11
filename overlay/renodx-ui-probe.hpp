@@ -11,7 +11,10 @@ inline bool hash_matches(HMODULE module, DWORD required_size = 1732608, const un
     HANDLE file = CreateFileW(filename, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
     if (file == INVALID_HANDLE_VALUE) return false;
     const DWORD size = GetFileSize(file, nullptr);
-    std::vector<unsigned char> data(size == required_size ? size : 0); DWORD read = 0;
+    // A zero size means the caller supplies an exact digest but deliberately
+    // does not know the release's PE size. The digest remains the identity;
+    // unknown binaries are never accepted by this fallback.
+    std::vector<unsigned char> data((required_size == 0 || size == required_size) ? size : 0); DWORD read = 0;
     const bool ok = !data.empty() && ReadFile(file, data.data(), size, &read, nullptr) && read == size;
     CloseHandle(file); if (!ok) return false;
     HCRYPTPROV provider = 0; HCRYPTHASH hash = 0; BYTE digest[32]; DWORD length = 32;

@@ -136,6 +136,7 @@ window.mountOverlayLive = (root, { designOnly = false } = {}) => {
     if(status?.feedPresent){
       const section=el('section','ol-feed-section');section.append(el('h4','','FEEDER CONTROLS'));
       const feed=el('div','ol-additional');for(const t of status.feedTools||[])addTool(feed,t);
+      section.querySelector('h4').textContent=`FEEDER ${status.feedVersion||'UNKNOWN'} CONTROLS`;
       section.append(feed,el('p','ol-live-note ol-feed-status',status.feedReason));
       extra.after(section);
       // Keep the compact panel bounded: choose a backend section instead of
@@ -164,7 +165,7 @@ window.mountOverlayLive = (root, { designOnly = false } = {}) => {
       backend.onclick=()=>{
         sample.feedPresent=!sample.feedPresent;
         sample.feedReason='Design preview only. Feeder cfg controls; work resolution, filter and sharpness require DX11.';
-        sample.feedTools=[['Feeder enabled (original panel)',1,1,0,1],['Work resolution (%)',0,100,50,100],['Work sharpness',0,.3,0,1],['Motion scale X',0,1,-2,2],['Motion scale Y',0,1,-2,2],['HDR contract',0,-1,-1,1],['Depth convention',0,-1,-1,1],['Work upscale',0,0,0,2]].map(([name,kind,value,min,max],i)=>({id:301+i,name,kind,value,min,max,step:[0,1,5,6,7].includes(i)?1:.01,available:i!==0,effect:'Feeder 0.12.0'}));
+        sample.feedVersion='0.12.0';sample.feedTools=[['Feeder enabled (original panel)',1,1,0,1],['Work resolution (%)',0,100,50,100],['Work sharpness',0,.3,0,1],['Motion scale X',0,1,-2,2],['Motion scale Y',0,1,-2,2],['HDR contract',0,-1,-1,1],['Depth convention',0,-1,-1,1],['Work upscale',0,0,0,2]].map(([name,kind,value,min,max],i)=>({id:301+i,name,kind,value,min,max,step:[0,1,5,6,7].includes(i)?1:.01,available:i!==0,effect:'Feeder 0.12.0'}));
         build();update();
       };
       modes.after(backend);
