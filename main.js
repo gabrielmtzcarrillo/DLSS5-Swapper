@@ -12,7 +12,7 @@ const { scanGame } = require('./src/core/scan.js');
 const { discover, folder, dedupe, isInside, steam } = require('./src/library');
 const { contextForSteamGame, createSetupRunner } = require('./src/core/proton');
 const art = require('./src/steamart');
-const { backupRoot, saveActiveManifest, writeTracked } = require('./src/core/apply.js');
+const { backupRoot } = require('./src/core/apply.js');
 const { scanSource } = require('./src/core/scan.js');
 const feederReleases = require('./src/core/feeder-release.js');
 const FEEDER_VERSIONS = Array.isArray(feederReleases.VERSIONS) ? feederReleases.VERSIONS : [feederReleases];
@@ -72,7 +72,7 @@ const KNOWN = {
   // Superseded by the v4.7 that now ships. Kept recognised so a hand-added copy
   // is still named rather than showing up as its folder.
   '0c0a02578d2aadf2': { name: 'v4.6 (previous)' },
-  // Bundled: the build the in-game overlay's adapter is fingerprinted against.
+  // Bundled RenoDX build.
   '88116071ef689864': {
     name: 'v4.7',
     shipped: true
@@ -313,8 +313,6 @@ function createWindow() {
   win.once('ready-to-show', () => win.show());
   win.on('closed', () => {
     win = null;
-    // The offscreen overlay window can outlive the main window, so waiting
-    // for window-all-closed would leave the app running invisibly.
     if (!quitting) app.quit();
   });
 }
@@ -325,10 +323,7 @@ function createWindow() {
 
 app.setAppUserModelId('com.rakan.dlss5swapper');
 
-// A second copy of the app is not just wasted memory: it writes its own
-// overlay endpoint over the first one's and listens on its own pipe, so the
-// panel in the game would be driven by whichever window happened to start
-// last. Opening the app again raises the window that is already running.
+// Opening the app again raises the window that is already running.
 //
 // The lock is asked for defensively - the IPC handlers in this file are also
 // exercised outside Electron, where app is a stand-in that has no such call.
@@ -347,57 +342,17 @@ if (!singleInstance) {
 }
 
 
-// The same overlay library the Overlay page manages, so an install picks up
-// exactly the build shown there.
-function overlayLibrary() {
-  const { createOverlayLibrary } = require('./src/overlays');
-  const root = path.resolve(__dirname);
-  const builtin = app.isPackaged
-    ? path.join(process.resourcesPath, 'overlay', 'dlss5-lab-overlay.addon64')
-    : path.join(root, 'dist/overlay/dlss5-lab-overlay.addon64');
-  return createOverlayLibrary(path.join(app.getPath('userData'), 'overlay-library'), builtin,
-    [root, app.isPackaged ? path.dirname(app.getPath('exe')) : root]);
-}
-
-// The in-game overlay draws its panel in an offscreen window here and streams
-// the frames over a local pipe, so the bridge lives as long as the app does.
-let overlayBridge;
 let quitting = false;
 
 app.whenReady().then(async () => {
-  // app.quit() is asynchronous, so a copy that lost the lock still reaches
-  // this point: without the guard it would create a window and take over the
-  // overlay endpoint on its way out.
   if (!singleInstance) return;
-  // Registered here rather than at load: main.js is exercised in a plain vm
-  // context by the tests, where src modules are stubbed and cannot be called.
-  require('./src/overlay-ipc')({ app, ipcMain, dialog, shell, window: () => win, bridge: () => overlayBridge });
   createWindow();
-  if (quitting) return;
-  overlayBridge = require('./src/overlay-service')({
-    userData: app.getPath('userData'), version: app.getVersion(),
-    startBridge: options => require('./src/overlay-bridge')({ BrowserWindow, userData: app.getPath('userData'), ...options }),
-    showError: async detail => {
-      if (quitting) return false;
-      const result = await dialog.showMessageBox(win, { type: 'error', title: 'Overlay unavailable',
-        message: 'The in-game overlay could not start. F8 may show “Waiting for the shared panel design”.',
-        detail: 'Retry restarts only the overlay bridge. Keep Swapper open and use one game at a time. If this persists, attach the diagnostic file below to your report. You can close the panel with F8 or Escape and use Home for the original ReShade tools. Restart Swapper to retry later.\n\n' + detail,
-        buttons: ['Retry overlay', 'Continue without overlay'], defaultId: 0, cancelId: 1 });
-      return result.response === 0;
-    }
-  });
-  await overlayBridge.start();
 });
-// The overlay bridge keeps an offscreen window of its own, so closing the
-// visible one no longer emptied the window list and window-all-closed never
-// arrived: the process stayed in Task Manager with nothing on screen. Quitting
-// follows the window the person actually closed.
 app.on('window-all-closed', () => app.quit());
 app.on('before-quit', event => {
   if (quitting) return;
   event.preventDefault();
   quitting = true;
-  overlayBridge?.close();
   stateWrites.finally(() => app.quit());
 });
 
@@ -1202,37 +1157,6 @@ ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, re
   // add-ons alone; all managed copies now participate in the transaction.
   const companions = route === 'native' && target.bitness === 64 ? companionAddons() : [];
 
-  // The in-game overlay rides along with the install when it is switched on and
-  // the executable is one it supports. Prepared before anything is written, so
-  // an unsupported build refuses the install rather than half-finishing it.
-  const gameOverlay = require('./src/game-overlay');
-  let overlayWanted = false;
-  // An unreadable preference means the overlay is off. A DLSS install must not
-  // fail because of it.
-  try { overlayWanted = require('./src/overlay-preferences').read(app.getPath('userData')).enabled === true; } catch {}
-
-  let overlayPlan = null;
-  if (overlayWanted) {
-    try {
-      // Drop records whose bytes are already gone - a restore, or an overlay
-      // rebuilt since. Without this, prepare() refuses the new build because an
-      // old record still claims a different one is installed here.
-      gameOverlay.cleanupMissing(overlayLibrary(), dir);
-      // An update ships a different overlay build. Retire the copy this app
-      // installed here for the previous one instead of stopping with "remove
-      // the previous test overlay first".
-      gameOverlay.replaceOutdated(overlayLibrary(), path.dirname(target.path));
-      if (gameOverlay.routes(target).includes(route)) {
-        overlayPlan = gameOverlay.prepare({ library: overlayLibrary(), target, route });
-      }
-    } catch (error) {
-      // DLSS is the job; the overlay rides along. A missing or conflicting
-      // overlay build is reported and skipped - the switch defaults to on, so
-      // failing here would break every install on a machine without one.
-      send({ code: 'overlaySkipped', params: { error: error.message } });
-    }
-  }
-
   try {
     // A game could have been launched while the component download ran.
     await guards.assertGameClosed(dir, target.path);
@@ -1258,35 +1182,9 @@ ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, re
       addStreamline: false,
       upgradeReShade: false
     }, send);
-    // By this point DLSS is installed and the manifest is written. An overlay
-    // failure here is reported, never turned into a failed install that the
-    // caller would read as "nothing happened".
-    if (overlayPlan) try {
-      const exeDir = path.dirname(target.path);
-      // Feeder's own config template omits two upstream defaults the overlay
-      // reads; fill them without touching a choice already made.
-      if (route === 'feeder') {
-        const cfg = path.join(exeDir, 'dlss5-feed.cfg');
-        if (fs.existsSync(cfg)) {
-          await writeTracked(manifest, dir, cfg,
-            gameOverlay.completeFeederConfig(fs.readFileSync(cfg, 'utf8')), { kind: 'config' });
-        }
-      }
-      await journal.capture(dir, overlayPlan.file);
-      await gameOverlay.attach({
-        library: overlayLibrary(), target, gameDir: dir, manifest,
-        saveManifest: saveActiveManifest, plan: overlayPlan
-      });
-      send({ code: 'addonInstalled', params: { name: 'DLSS 5 Overlay (F8)' } });
-    } catch (error) {
-      send({ code: 'overlaySkipped', params: { error: error.message } });
-      try { gameOverlay.cleanupMissing(overlayLibrary(), dir); } catch {}
-    }
     saveOperation(dir, manifest, 'install', send);
     return { ok: true, replaced: manifest.replaced.length, added: manifest.added.length };
   } catch (err) {
-    // Drop stale overlay records whose bytes the rollback already removed.
-    try { require('./src/game-overlay').cleanupMissing(overlayLibrary(), dir); } catch {}
     return { ok: false, code: err.code, message: err.message };
   }
 }));

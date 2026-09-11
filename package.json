@@ -16,9 +16,7 @@
     "build:linux": "electron-builder --linux AppImage deb",
     "icon": "electron scripts/make-icon.js",
     "prebuild:portable": "npm run payload",
-    "build:portable": "electron-builder --win portable",
-    "overlay:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-overlay.ps1",
-    "overlay:prepare": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-overlay.ps1"
+    "build:portable": "electron-builder --win portable"
   },
   "author": "Rakan Alkhaldi",
   "license": "MIT",
@@ -35,7 +33,6 @@
     "files": [
       "main.js",
       "preload.js",
-      "overlay-preload.js",
       "THIRD_PARTY_NOTICES.md",
       "src/**/*",
       "assets/**/*",
@@ -52,13 +49,6 @@
       {
         "from": "addons",
         "to": "addons",
-        "filter": [
-          "**/*"
-        ]
-      },
-      {
-        "from": "overlay-bin",
-        "to": "overlay",
         "filter": [
           "**/*"
         ]

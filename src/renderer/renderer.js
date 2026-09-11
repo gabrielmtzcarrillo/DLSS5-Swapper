@@ -68,7 +68,6 @@ function show(view) {
   if (view === 'history') renderHistory();
   if (view === 'settings') renderSettings();
   if (view === 'addons') renderAddons();
-  if (view === 'overlays') window.overlayLab.render();
 }
 
 for (const link of document.querySelectorAll('[data-project]')) {
@@ -1027,7 +1026,6 @@ function applyLang(code) {
   if (view && view.id === 'view-history') renderHistory();
   if (view && view.id === 'view-settings') renderSettings();
   if (view && view.id === 'view-addons') renderAddons();
-  if (view && view.id === 'view-overlays') window.overlayLab.render();
   if (sheetGame) openSheet(sheetGame.dir, true);
 }
 

@@ -27,6 +27,7 @@ const COMPONENTS = {
 // machine. Override either with an argument: npm run payload -- <dlss5Dir>
 const DEFAULT_SOURCES = [
   process.argv[2],
+  PAYLOAD,
   path.resolve(ROOT, '..'),
   path.join(os.homedir(), 'OneDrive', 'Desktop', 'dlss 5 swapper'),
   path.join(os.homedir(), 'Desktop', 'dlss 5 swapper')
@@ -78,13 +79,21 @@ async function extracted(component, folder) {
 
 function findSource() {
   for (const dir of DEFAULT_SOURCES) {
-    const streamline = fs.existsSync(path.join(dir, 'streamline'))
-      ? path.join(dir, 'streamline')
-      : dir;
+    const candidates = [dir];
     try {
-      const files = fs.readdirSync(streamline);
-      if (files.some((f) => /^nvngx_dlssnr\.dll$/i.test(f))) return { dir, streamline };
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (entry.isDirectory()) candidates.push(path.join(dir, entry.name));
+      }
     } catch {}
+    for (const candidate of candidates) {
+      const streamline = fs.existsSync(path.join(candidate, 'streamline'))
+        ? path.join(candidate, 'streamline')
+        : candidate;
+      try {
+        const files = fs.readdirSync(streamline);
+        if (files.some((f) => /^nvngx_dlssnr\.dll$/i.test(f))) return { dir: candidate, streamline };
+      } catch {}
+    }
   }
   return null;
 }
@@ -100,9 +109,9 @@ function findAddon(dir) {
 }
 
 // Only an "Addon" build can load the DLSS 5 add-on; pick the newest one.
-function findReShadeSetup() {
+function findReShadeSetup(extraDirs = []) {
   const found = [];
-  for (const dir of RESHADE_DIRS) {
+  for (const dir of [...extraDirs, ...RESHADE_DIRS]) {
     let entries = [];
     try { entries = fs.readdirSync(dir); } catch { continue; }
     for (const name of entries) {
@@ -195,11 +204,25 @@ async function collectFeeder(source, feederRelease) {
 }
 
 async function main() {
-const source = findSource();
+let source = findSource();
 if (!source) {
   console.error('لم يتم العثور على ملفات DLSS 5 / DLSS 5 files not found.');
   console.error('Pass the folder explicitly:  npm run payload -- "C:\\path\\to\\dlss 5 swapper"');
   process.exit(1);
+}
+
+// A previous payload run may have left the source bundle inside payload/.
+// Stage it outside before rebuilding, because the next step clears payload/.
+const payloadPath = path.resolve(PAYLOAD).toLowerCase();
+const payloadRoot = payloadPath + path.sep;
+const sourcePath = path.resolve(source.dir).toLowerCase();
+if (sourcePath === payloadPath || sourcePath.startsWith(payloadRoot)) {
+  const staged = fs.mkdtempSync(path.join(os.tmpdir(), 'dlss5-payload-source-'));
+  fs.cpSync(source.dir, staged, { recursive: true });
+  source = {
+    dir: staged,
+    streamline: path.join(staged, path.relative(source.dir, source.streamline))
+  };
 }
 
 fs.rmSync(PAYLOAD, { recursive: true, force: true });
@@ -289,19 +312,7 @@ async function extracted(component, folder) {
 }
 console.log(`  (${extras} optional add-on build${extras === 1 ? '' : 's'} bundled)`);
 
-// The in-game overlay's native add-on, built by scripts/build-overlay.ps1.
-// Staged like the payload so electron-builder ships it as resources/overlay.
-const OVERLAY_BIN = path.join(ROOT, 'overlay-bin');
-fs.rmSync(OVERLAY_BIN, { recursive: true, force: true });
-const overlayBuilds = [
-  path.join(ROOT, 'dist', 'overlay', 'dlss5-lab-overlay.addon64'),
-  path.join(ROOT, '..', 'lab', 'dist', 'overlay', 'dlss5-lab-overlay.addon64')
-];
-const overlayBuild = overlayBuilds.find((f) => fs.existsSync(f));
-if (overlayBuild) copyFile(overlayBuild, path.join(OVERLAY_BIN, 'dlss5-lab-overlay.addon64'));
-else console.warn('  ! overlay add-on not built - the Overlay page will offer no built-in entry');
-
-const reshade = findReShadeSetup();
+const reshade = findReShadeSetup([source.dir]);
 if (!reshade) {
   // Warning-and-continue here once shipped a build that silently could not
   // install ReShade, which is half of what the app does. Stop instead.

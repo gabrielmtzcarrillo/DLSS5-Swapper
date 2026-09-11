@@ -6,8 +6,6 @@
         content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' file: data:" />
   <title>DLSS 5 Swapper</title>
   <link rel="stylesheet" href="style.css" />
-  <link rel="stylesheet" href="overlay-lab.css" />
-  <link rel="stylesheet" href="overlay-controls.css" />
 </head>
 <body>
   <div class="shell">
@@ -27,10 +25,6 @@
         <button class="nav-item" data-view="addons">
           <svg viewBox="0 0 24 24"><path d="M10 4.5a1.9 1.9 0 1 1 3.8 0V6H17a1 1 0 0 1 1 1v3.2h1.5a1.9 1.9 0 1 1 0 3.8H18V17a1 1 0 0 1-1 1h-3.2v1.5a1.9 1.9 0 1 1-3.8 0V18H7a1 1 0 0 1-1-1v-3.2H4.5a1.9 1.9 0 1 1 0-3.8H6V7a1 1 0 0 1 1-1h3z"/></svg>
           <span data-i18n="navAddons">Add-ons</span><i class="dot"></i>
-        </button>
-        <button class="nav-item" data-view="overlays">
-          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 9v12M13 13h4M13 17h4"/></svg>
-          <span data-i18n="navOverlay">Overlay</span><i class="dot"></i>
         </button>
         <button class="nav-item" data-view="history">
           <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5M12 7v5l3.5 2"/></svg>
@@ -145,31 +139,6 @@
         <div class="glass" id="history"></div>
       </section>
 
-      <!-- SETTINGS -->
-      <section class="view" id="view-overlays" aria-label="Overlay">
-        <div class="section-head">
-          <div><h3>Overlay <span class="ol-badge">BETA</span></h3><p class="hint" id="olSubtitle"></p></div>
-          <div class="row ol-toolbar"><label class="ol-install-switch"><input type="checkbox" role="switch" id="olEnabled"><span id="olEnabledLabel">Install with DLSS</span></label><button class="ghost sm" id="olSource">Developer files</button><button class="ghost sm" id="olHotkey">Hotkey · F8</button><button class="ghost sm" id="olCustom">Create theme</button><button class="glass-btn sm" id="olAdd">＋ Add</button></div>
-        </div>
-        <p id="olStatus" role="status" aria-live="polite"></p>
-        <p id="olBridge" class="ol-bridge"></p><div id="olThemeGallery"></div><div id="olLibrary"></div><div id="olInstalls"></div>
-        <dialog id="olPreviewDialog" class="ol-dialog"><div class="ol-dialog-head"><h3 id="olPreviewLabel">Demo preview</h3><button id="olPreviewClose" class="ghost">✕</button></div><div id="olPreview"></div></dialog>
-        <dialog id="olCustomDialog" class="ol-dialog ol-custom-dialog">
-          <h3 id="olCustomTitle">Create a theme</h3>
-          <p id="olCustomHelp">Pick an accent colour. The panel's other shades are derived from it.</p>
-          <div class="ol-custom-row">
-            <label for="olCustomColour" id="olCustomColourLabel">Colour</label>
-            <input type="color" id="olCustomColour" value="#ff7a00">
-            <label for="olCustomName" id="olCustomNameLabel">Name</label>
-            <input type="text" id="olCustomName" maxlength="32" spellcheck="false" value="My theme">
-          </div>
-          <div class="ol-custom-preview"><div class="ol-static-panel" id="olCustomPreview" inert aria-hidden="true"></div></div>
-          <p id="olCustomError" role="status"></p>
-          <div class="row"><button id="olCustomCancel" class="ghost">Cancel</button><button id="olCustomSave" class="glass-btn">Save</button></div>
-        </dialog>
-        <dialog id="olHotkeyDialog" class="ol-dialog ol-hotkey-dialog"><h3>Overlay hotkey</h3><p id="olKeyHelp">Click the field, then press your shortcut. Ctrl, Alt and Shift are supported. Home / Escape stay reserved for ReShade.</p><button id="olKeyCapture" class="ghost">F8</button><p id="olKeyError" role="status"></p><div class="row"><button id="olKeyCancel" class="ghost">Cancel</button><button id="olKeySave" class="glass-btn">Save</button></div></dialog>
-      </section>
-
       <section class="view" id="view-settings">
         <div class="section-head"><h3 data-i18n="navSettings">Settings</h3></div>
         <div class="glass pad" id="settings"></div>
@@ -225,9 +194,6 @@
   </div>
   <div id="copyFeedback" class="copy-feedback hidden" role="status" aria-live="polite"></div>
 
-  <script src="overlay-panel.js"></script>
-  <script src="overlay-live.js"></script>
-  <script src="overlay-gallery.js"></script>
   <script src="i18n.js"></script>
   <script src="i18n-extra.js"></script>
   <script src="../shared/feature-i18n.js"></script>

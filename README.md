@@ -37,7 +37,7 @@
 - **dgVoodoo2 version:** choose v2.87.4 or v2.87.3 in Settings for DX8/9 games. The choice is saved and used on the next Apply / Install. Each version downloads from its official release with SHA-256 verification; reapply to change an existing installation.
 - **Right-click shortcuts:** open/copy folder, rescan, change cover, restore originals or hide a game.
 - **Backups and History:** restore original files, keep installation records, and copy History/activity/install logs.
-- **In-game overlay:** press **F8** to open the app's own panel over the running game and move the real DLSS Neural Rendering sliders while you play. Supports the **DLSS5-Feeder** and **RenoDX v4.7** routes only.
+- **ReShade options:** configure DLSS Neural Rendering through ReShade's own in-game options and overlay.
 - **Rendering API override:** optional, per game, with **Automatic** as the default; detection is never overwritten.
 - **Custom add-ons:** the Add-ons page remains available alongside the integrated installation routes.
 

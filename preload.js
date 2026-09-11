@@ -2,16 +2,6 @@
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('lab', {
-  // ---- in-game overlay ----
-  overlays: () => ipcRenderer.invoke('overlay-list'),
-  overlayPreferences: () => ipcRenderer.invoke('overlay-preferences'),
-  saveOverlayPreferences: (patch) => ipcRenderer.invoke('overlay-save-preferences', patch),
-  overlayAdd: () => ipcRenderer.invoke('overlay-add'),
-  overlayRemove: (id) => ipcRenderer.invoke('overlay-remove', id),
-  overlayInstall: (id) => ipcRenderer.invoke('overlay-install', id),
-  overlayUninstall: (id) => ipcRenderer.invoke('overlay-uninstall', id),
-  overlaySource: () => ipcRenderer.invoke('overlay-source'),
-  overlayBridge: () => ipcRenderer.invoke('overlay-bridge'),
   checkUpdate: () => ipcRenderer.invoke('update-check'),
   unhide: (dir) => ipcRenderer.invoke('unhide', dir),
   boot: () => ipcRenderer.invoke('boot'),
