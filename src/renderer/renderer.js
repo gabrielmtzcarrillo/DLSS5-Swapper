@@ -626,6 +626,7 @@ let jobRunning = false;
 // the sheet - a language switch does that - does not silently reset the choice.
 const exeChoice = new Map();
 const routeChoice = new Map();
+const nativeAddonChoice = new Map();
 
 // One row per fact, in a single panel. A wrapping grid of bordered tiles left
 // an orphan on its own line whenever the count was odd, and repeated the same
@@ -735,6 +736,9 @@ function installOptions(d, pick, dir) {
       ${!opti && routes.includes('feeder') ? `<label><span>${t('setFeederVersion')}</span><select id="installFeederVersion" aria-describedby="installFeederHint">
         ${d.feederVersions.map(version => `<option value="${esc(version)}"${version === d.feederVersion ? ' selected' : ''}>v${esc(version)}</option>`).join('')}
       </select></label>` : ''}
+      ${!opti && route === 'native' && pick.bitness === 64 && d.nativeAddons?.length > 1 ? `<label><span>RenoDX DLSS 5 add-on</span><select id="installNativeAddon" aria-describedby="nativeAddonHint">
+        ${d.nativeAddons.map(item => `<option value="${esc(item.path)}">${esc(item.label)}</option>`).join('')}
+      </select></label>` : ''}
     </div>
     ${apiHint}
     <div class="emu-note backend-note" id="backendHint"><span>${t(opti ? 'optiHint' : 'backendHint')}</span>
@@ -747,6 +751,7 @@ function installOptions(d, pick, dir) {
     ${warning}
     ${['d3d8', 'd3d9'].includes(api.api) ? `<div class="emu-note" id="installDgVoodooHint"><span>${t('setDgVoodooHint')}</span><span>${t('legacyRendererHint')}</span></div>` : ''}
     ${!opti && routes.includes('feeder') ? `<div class="emu-note" id="installFeederHint"><span>${t('setFeederHint')}</span></div>` : ''}
+    ${!opti && route === 'native' && pick.bitness === 64 && d.nativeAddons?.length > 1 ? `<div class="emu-note" id="nativeAddonHint">Select the RenoDX DLSS 5 build to install. Only one is installed at a time.</div>` : ''}
     ${pick.emulator ? `<div class="emu-note"><b>${esc(pick.emulator.name)} · ${esc(pick.emulator.system)}</b><span>${esc(pick.emulator.hint)}</span><span>${t('emulatorDepthHint')}</span>${pick.emulator.key === 'xenia' ? `<span>${t('xeniaUiHint')}</span>` : ''}</div>` : ''}`;
 }
 
@@ -893,6 +898,13 @@ async function openSheet(dir, keepLog = false) {
   };
   const routeSelect = $('routeChoice');
   if (routeSelect) routeSelect.onchange = () => { routeChoice.set(dir, routeSelect.value); openSheet(dir, true); };
+  const nativeAddonSelect = $('installNativeAddon');
+  if (nativeAddonSelect) {
+    const current = nativeAddonChoice.get(dir) || d.nativeAddons[0]?.path;
+    nativeAddonSelect.value = current || '';
+    nativeAddonChoice.set(dir, nativeAddonSelect.value);
+    nativeAddonSelect.onchange = () => nativeAddonChoice.set(dir, nativeAddonSelect.value);
+  }
   const backendSelect = $('backendChoice');
   if (backendSelect) backendSelect.onchange = () => {
     const available = routesFor(pick).filter(route => route !== 'optiscaler');
@@ -943,7 +955,8 @@ async function runJob(kind, dir) {
       dir,
       exeChoice.get(dir) || null,
       pick ? selectedRoute(sheetDetails, pick, dir) : null,
-      pick?.apiOverride || 'auto'
+      pick?.apiOverride || 'auto',
+      nativeAddonChoice.get(dir) || null
     )
     : await window.lab.restoreGame(dir);
   } catch (error) { res = { ok: false, message: error.message }; }

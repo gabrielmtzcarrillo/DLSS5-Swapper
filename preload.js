@@ -44,7 +44,7 @@ contextBridge.exposeInMainWorld('lab', {
   touch: (dir) => ipcRenderer.invoke('touch', dir),
   recents: () => ipcRenderer.invoke('recents'),
   details: (dir) => ipcRenderer.invoke('details', dir),
-  install: (dir, exePath, route, api) => ipcRenderer.invoke('install', dir, exePath, route, api),
+  install: (dir, exePath, route, api, addon) => ipcRenderer.invoke('install', dir, exePath, route, api, addon),
   addons: () => ipcRenderer.invoke('addons'),
   addonToggle: (file, on) => ipcRenderer.invoke('addon-toggle', file, on),
   addonPick: () => ipcRenderer.invoke('addon-pick'),

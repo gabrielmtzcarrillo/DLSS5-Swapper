@@ -760,14 +760,49 @@ function companionAddons() {
   const p = payload(true);
   if (!p) return [];
   const taken = new Set([path.basename(p.source.addon).toLowerCase()]);
+  const nativeBuildNames = new Set(['renodx-dlss5.addon64', 'renodx-dlss5-v2.5.addon64']);
   const out = [];
   for (const f of enabledAddons()) {
     const name = path.basename(f).toLowerCase();
+    if (nativeBuildNames.has(name)) continue;
     if (taken.has(name)) continue;
     taken.add(name);
     out.push(f);
   }
   return out;
+}
+
+// RenoDX DLSS 5 builds are intentionally a small, explicit choice. They are
+// not interchangeable with arbitrary ReShade add-ons, and loading both
+// versions at once can make the neural consumer race itself.
+function nativeAddonChoices() {
+  const wanted = new Set(['renodx-dlss5.addon64', 'renodx-dlss5-v2.5.addon64']);
+  const found = [];
+  const seen = new Set();
+  const add = (file) => {
+    if (!file || !wanted.has(path.basename(file).toLowerCase()) || !fs.existsSync(file)) return;
+    const resolved = path.resolve(file);
+    const key = resolved.toLowerCase();
+    if (seen.has(key)) return;
+    const row = describe(resolved, null);
+    if (!row) return;
+    seen.add(key);
+    found.push({ path: resolved, file: row.file, label: row.file });
+  };
+  const p = payload(true);
+  if (p?.source?.addon) add(p.source.addon);
+  for (const box of addonFolders()) {
+    let files = [];
+    try { files = fs.readdirSync(box); } catch { continue; }
+    for (const file of files) add(path.join(box, file));
+  }
+  for (const entry of loadState().addonFiles || []) add(typeof entry === 'string' ? entry : entry.path);
+  return found;
+}
+
+function selectedNativeAddon(file) {
+  if (typeof file !== 'string' || !file) return null;
+  return nativeAddonChoices().find((choice) => choice.path.toLowerCase() === path.resolve(file).toLowerCase())?.path || null;
 }
 
 // apply.js keeps its own copy of this private to the module, and the same
@@ -958,6 +993,7 @@ ipcMain.handle('details', async (_event, dir) => {
     bitness: scan.chosen ? scan.chosen.bitness : null,
     via: scan.chosen ? scan.chosen.via : null,
     emulator: scan.emulator,
+    nativeAddons: nativeAddonChoices(),
     installedRoute: scan.install && scan.install.route,
     installedFeederVersion: scan.install && scan.install.feederVersion,
     antiCheatWarning: compatibility.hasAntiCheat(dir, scan.chosen?.path),
@@ -1015,7 +1051,7 @@ async function exclusiveMutation(work) {
   finally { mutationBusy = false; }
 }
 
-ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi) => exclusiveMutation(async () => {
+ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, requestedAddon) => exclusiveMutation(async () => {
   const p = payload();
   if (!p) return {
     ok: false,
@@ -1042,6 +1078,11 @@ ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi) =>
   const recommendedRoute = installRoutes.recommendedRoute(scan, target);
   const route = availableRoutes.includes(requestedRoute) ? requestedRoute
     : (availableRoutes.includes(recommendedRoute) ? recommendedRoute : availableRoutes[0]);
+  const selectedAddon = route === 'native' && target.bitness === 64 ? selectedNativeAddon(requestedAddon) : null;
+  if (requestedAddon && route === 'native' && target.bitness === 64 && !selectedAddon) {
+    return { ok: false, message: 'The selected RenoDX add-on is not available.' };
+  }
+  if (selectedAddon) p.source.addon = selectedAddon;
 
   // ReShade Setup is a Windows executable. On Linux, support Windows games
   // launched with Steam Play by using their existing Proton prefix; native
