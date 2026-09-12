@@ -625,6 +625,7 @@ let jobRunning = false;
 // the sheet - a language switch does that - does not silently reset the choice.
 const exeChoice = new Map();
 const routeChoice = new Map();
+const dgVoodooVersionChoice = new Map();
 const nativeAddonChoice = new Map();
 const multiFrameGenerationChoice = new Map();
 const additionalEffectsChoice = new Map();
@@ -721,6 +722,14 @@ function installOptions(d, pick, dir) {
   const routes = routesFor(pick);
   const opti = route === 'optiscaler';
   const optiReason = window.installRoutes.optiReason(window.renderingApi.effective(pick, pick.apiOverride || 'auto'));
+  const legacy = ['d3d8', 'd3d9'].includes(api.api);
+  const selectedDgVoodoo = dgVoodooVersionChoice.get(dir) || d.dgVoodooVersion;
+  const componentVersions = [];
+  if (legacy) componentVersions.push(`dgVoodoo2 v${selectedDgVoodoo}`);
+  if (!opti && route === 'feeder') {
+    componentVersions.push(`DLSS5-Feeder v${d.feederVersion}`);
+    componentVersions.push(`RenoDX DLSS 5 ${d.renodxVersion ? `v${d.renodxVersion}` : '(version unavailable)'}`);
+  }
   const apiField = `<label class="api-field"><span>${t('fApi')}</span><select id="apiChoice" aria-describedby="apiHint">
     <option value="auto"${!pick.apiOverride || pick.apiOverride === 'auto' ? ' selected' : ''}>${esc(t('apiAutomatic', pick.apiLabel || t('unknownApi')))}</option>
     ${window.renderingApi.choices.map(item => `<option value="${item.value}"${pick.apiOverride === item.value ? ' selected' : ''}>${item.label}</option>`).join('')}
@@ -739,8 +748,8 @@ function installOptions(d, pick, dir) {
       ${!opti ? `<label><span>${t('fRoute')}</span><select id="routeChoice">${routes.filter(item => item !== 'optiscaler').map((item) =>
         `<option value="${item}"${item === route ? ' selected' : ''}>${item === 'renodx' ? 'RenoDX DLSS Tool (multipass)' : t(item === 'feeder' ? 'routeFeeder' : 'routeNative')}</option>`).join('')}</select></label>
       ` : ''}
-      ${!opti && ['d3d8', 'd3d9'].includes(api.api) ? `<label><span>${t('setDgVoodooVersion')}</span><select id="installDgVoodooVersion" aria-describedby="installDgVoodooHint">
-        ${d.dgVoodooVersions.map(version => `<option value="${esc(version)}"${version === d.dgVoodooVersion ? ' selected' : ''}>v${esc(version)}</option>`).join('')}
+      ${!opti && legacy ? `<label><span>${t('setDgVoodooVersion')}</span><select id="installDgVoodooVersion" aria-describedby="installDgVoodooHint">
+        ${d.dgVoodooVersions.map(version => `<option value="${esc(version)}"${version === selectedDgVoodoo ? ' selected' : ''}>dgVoodoo2 v${esc(version)}</option>`).join('')}
       </select></label>` : ''}
       ${!opti && route === 'feeder' ? `<label><span>${t('setFeederVersion')}</span><select id="installFeederVersion" aria-describedby="installFeederHint">
         ${d.feederVersions.map(version => `<option value="${esc(version)}"${version === d.feederVersion ? ' selected' : ''}>v${esc(version)}</option>`).join('')}
@@ -760,7 +769,8 @@ function installOptions(d, pick, dir) {
     </div>
     ${pick.installIssue ? `<div class="emu-note compatibility-warning" role="alert">${t(pick.installIssue)}</div>` : ''}
     ${warning}
-    ${['d3d8', 'd3d9'].includes(api.api) ? `<div class="emu-note" id="installDgVoodooHint"><span>${t('setDgVoodooHint')}</span><span>${t('legacyRendererHint')}</span></div>` : ''}
+    ${legacy ? `<div class="emu-note" id="installDgVoodooHint"><span>${t('setDgVoodooHint')}</span><span>${t('legacyRendererHint')}</span><span>${t('legacyDlssOptionsHint')}</span></div>` : ''}
+    ${componentVersions.length ? `<div class="emu-note" id="installComponentsHint"><b>${t('installComponents')}</b>${componentVersions.map(esc).map(value => `<span>${value}</span>`).join('')}</div>` : ''}
     ${!opti && route === 'feeder' ? `<div class="emu-note" id="installFeederHint"><span>${t('setFeederHint')}</span></div>` : ''}
     ${!opti && route === 'native' && pick.bitness === 64 && d.nativeAddons?.length ? `<div class="emu-note" id="nativeAddonHint">Select the RenoDX DLSS 5 build to install. Only one is installed at a time.</div>` : ''}
     ${!opti && route === 'native' && pick.bitness === 64 && d.multiFrameGenerationAvailable ? `<div class="emu-note" id="multiFrameGenerationHint"><span>${t('multiFrameGenerationHint')}</span></div>` : ''}
@@ -804,6 +814,7 @@ async function openSheet(dir, keepLog = false) {
   if (sheetGame !== g) return;
   d.dgVoodooVersions = settings.dgVoodooVersions;
   d.dgVoodooVersion = settings.dgVoodooVersion;
+  if (!dgVoodooVersionChoice.has(dir)) dgVoodooVersionChoice.set(dir, d.dgVoodooVersion);
   d.feederVersions = settings.feederVersions;
   d.feederVersion = settings.feederVersion;
   sheetDetails = d;
@@ -873,18 +884,7 @@ async function openSheet(dir, keepLog = false) {
   $('copyJob').onclick = () => copyText([sheetGame.name, sheetGame.dir, '', ...jobLines].join('\n'));
   wireExePicker(dir);
   const dgVoodooSelect = $('installDgVoodooVersion');
-  if (dgVoodooSelect) dgVoodooSelect.onchange = async () => {
-    document.querySelectorAll('#sheet select, #doInstall, #doRestore, #exeSelect').forEach(e => { e.disabled = true; });
-    try {
-      await window.lab.setDgVoodooVersion(dgVoodooSelect.value);
-    } catch (error) {
-      jobLog(error.message);
-    }
-    if (sheetGame?.dir === dir) {
-      await openSheet(dir, true);
-      $('installDgVoodooVersion')?.focus();
-    }
-  };
+  if (dgVoodooSelect) dgVoodooSelect.onchange = () => dgVoodooVersionChoice.set(dir, dgVoodooSelect.value);
   const feederSelect = $('installFeederVersion');
   if (feederSelect) feederSelect.onchange = async () => {
     document.querySelectorAll('#sheet select, #doInstall, #doRestore, #exeSelect').forEach(e => { e.disabled = true; });
@@ -914,7 +914,11 @@ async function openSheet(dir, keepLog = false) {
   if (nativeAddonSelect) {
     const installed = d.nativeAddons.find((item) =>
       d.addon && String(d.addon).split(/[\\/]/).pop().toLowerCase() === String(item.file).toLowerCase());
-    const current = nativeAddonChoice.get(dir) || installed?.path || d.nativeAddons[0]?.path;
+    // A sheet can be rebuilt by another setting while it is open. Do not let a
+    // stale map entry win over the options that are actually in this select.
+    const remembered = nativeAddonChoice.get(dir);
+    const current = d.nativeAddons.some((item) => item.path === remembered)
+      ? remembered : installed?.path || d.nativeAddons[0]?.path;
     nativeAddonSelect.value = current || '';
     nativeAddonChoice.set(dir, nativeAddonSelect.value);
     nativeAddonSelect.onchange = () => nativeAddonChoice.set(dir, nativeAddonSelect.value);
@@ -977,9 +981,13 @@ async function runJob(kind, dir) {
       exeChoice.get(dir) || null,
       pick ? selectedRoute(sheetDetails, pick, dir) : null,
       pick?.apiOverride || 'auto',
-      nativeAddonChoice.get(dir) || null,
+      // Read the control at the moment Install is pressed. The map is only a
+      // persistence aid for rerenders; the visible picker is the source of
+      // truth for this install.
+      $('installNativeAddon')?.value || nativeAddonChoice.get(dir) || null,
       multiFrameGenerationChoice.get(dir) === true,
-      reshadeEffectChoices.get(dir) ? [...reshadeEffectChoices.get(dir)] : []
+      reshadeEffectChoices.get(dir) ? [...reshadeEffectChoices.get(dir)] : [],
+      $('installDgVoodooVersion')?.value || dgVoodooVersionChoice.get(dir) || null
     )
     : await window.lab.restoreGame(dir);
   } catch (error) { res = { ok: false, message: error.message }; }

@@ -37,6 +37,7 @@ const S = {
     setFeederHint: 'Select the Feeder release used on the next Apply / Install. 32-bit DX10 requires 0.13.1-beta.1 or newer; 0.14.0-beta.4 is also compatible.',
     installedFeederVersion: 'Installed Feeder',
     setDgVoodooHint: 'Official download for DX8/9 games. Used on the next Apply / Install; existing installations change only when reapplied.',
+    installComponents: 'Components to install',
     antiCheatWarningTitle: 'Warning: anti-cheat detected',
     antiCheatWarning: 'This game appears to use anti-cheat. ReShade, Feeder or OptiScaler may cause crashes, prevent launch, or result in an account ban. Installation is optional: click Install and explicitly accept the risks to continue. Anti-cheat will not be disabled or bypassed.',
     errAntiCheatConsent: 'Anti-cheat was detected. Click Install again to review the warning and choose whether to continue.',

@@ -1015,7 +1015,9 @@ ipcMain.handle('details', async (_event, dir) => {
     addon: scan.addonPresent,
     reshade: scan.reshade,
     hasBackup: scan.hasBackup || fs.existsSync(journal.pendingPath(dir)),
-    newDlss: detailsPayload && detailsPayload.source ? detailsPayload.source.dlssVersion : null
+    newDlss: detailsPayload && detailsPayload.source ? detailsPayload.source.dlssVersion : null,
+    renodxVersion: detailsPayload?.source?.feeder?.hostAddon
+      ? pe.getFileVersion(detailsPayload.source.feeder.hostAddon) : null
   };
 });
 
@@ -1044,7 +1046,7 @@ async function exclusiveMutation(work) {
   finally { mutationBusy = false; }
 }
 
-ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, requestedAddon, requestedMultiFrameGeneration, requestedEffects) => exclusiveMutation(async () => {
+ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, requestedAddon, requestedMultiFrameGeneration, requestedEffects, requestedDgVoodooVersion) => exclusiveMutation(async () => {
   const p = payload();
   if (!p) return {
     ok: false,
@@ -1185,7 +1187,9 @@ ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, re
     }
     if (api === 'd3d8' || api === 'd3d9') {
       try {
-        p.source.feeder.dgVoodooDir = await ensureDgVoodoo(app.getPath('userData'), loadState().dgVoodooVersion);
+        p.source.feeder.dgVoodooDir = await ensureDgVoodoo(
+          app.getPath('userData'), requestedDgVoodooVersion || loadState().dgVoodooVersion
+        );
         send({ code: 'legacyWrapperReady', params: { api, bitness: target.bitness } });
       } catch (error) {
         return { ok: false, code: componentCode(error, 'legacyDownloadHint'), message: error.message };

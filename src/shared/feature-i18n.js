@@ -71,6 +71,7 @@ const catalog = {
     "errBackendRecovery": "An interrupted switch needs recovery. Close the game, then click Restore originals. Keep the backup folder intact.",
     "unsupportedRendererHint": "DirectX 10 uses Feeder through its private D3D11 relay. Compatibility is experimental; DirectX 11 may be more reliable when available.",
     "legacyRendererHint": "DX8/9 requires dgVoodoo2 → DirectX 11. The matching wrapper is downloaded from its official source on first install. Disable MSAA/SSAA in the game if depth is unavailable.",
+    "legacyDlssOptionsHint": "Warning: dgVoodoo2 uses a separate 64-bit host for DLSS 5. Not all DLSS 5 options can be applied from the game overlay; RenoDX tonemapping and preset controls may remain at their default values.",
     "runtimeRequiredHint": "Install or repair the official Microsoft Visual C++ runtime, then retry. 32-bit games need both x86 and x64.",
     "legacyDownloadHint": "The official dgVoodoo2 download could not be verified. Check your connection and retry; the existing installation was not changed.",
     "xeniaUiHint": "Xenia HUD compatibility is experimental. A conservative motion-vector/mask preset is applied, but UI correction cannot guarantee preservation of every game’s HUD. Share the game title and ReShade/Feeder logs if it still glitches.",
@@ -395,6 +396,13 @@ const rendererKeys = ['apiAutomatic', 'apiOverrideHint', 'apiVulkanHint', 'lates
 for (const [code, values] of Object.entries(rendererStrings)) {
   rendererKeys.forEach((key, index) => { catalog[code][key] = values[index]; });
   catalog[code].errBackendVulkanSwitch = values[2];
+}
+// Keep newly added feature notices available in every locale until their
+// translated wording is supplied; the UI always has a useful English fallback.
+for (const code of Object.keys(catalog)) {
+  if (!Object.hasOwn(catalog[code], 'legacyDlssOptionsHint')) {
+    catalog[code].legacyDlssOptionsHint = catalog.en.legacyDlssOptionsHint;
+  }
 }
 const aliases = {
   errOptiConflict: 'errLoaderConflict',
