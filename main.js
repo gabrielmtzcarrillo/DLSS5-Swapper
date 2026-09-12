@@ -18,6 +18,7 @@ const feederReleases = require('./src/core/feeder-release.js');
 const FEEDER_VERSIONS = Array.isArray(feederReleases.VERSIONS) ? feederReleases.VERSIONS : [feederReleases];
 const pe = require('./src/core/pe.js');
 const { ensureLumenite, ensureDgVoodoo, missingVCRuntime, DGVOODOO_VERSIONS, dgVoodooRelease } = require('./src/core/runtime-components.js');
+const { V25: RENO_DX_V25, cachePath: renoDxV25CachePath, ensureRenoDxV25 } = require('./src/core/renodx-addon');
 // A component that downloaded and verified, then vanished before it could be
 // used, is a security tool quarantining it - never the connection. Saying
 // "check your connection" there sends people after the wrong thing.
@@ -26,6 +27,7 @@ const installRoutes = require('./src/shared/install-routes');
 const renderingApi = require('./src/shared/rendering-api');
 const { projectUrl } = require('./src/core/project-links');
 const optiscaler = require('./src/core/optiscaler');
+const rtxmfg = require('./src/core/rtxmfg');
 const backends = require('./src/core/backend-manager');
 const journal = require('./src/core/file-journal');
 const guards = require('./src/core/install-guards');
@@ -311,6 +313,16 @@ function createWindow() {
   });
   win.loadFile(path.join(__dirname, 'src', 'renderer', 'index.html'));
   win.once('ready-to-show', () => win.show());
+  const sendWindowState = () => {
+    if (typeof win.webContents?.send === 'function') {
+      win.webContents.send('window-state', win.isMaximized());
+    }
+  };
+  win.on('maximize', sendWindowState);
+  win.on('unmaximize', sendWindowState);
+  if (typeof win.webContents?.once === 'function') {
+    win.webContents.once('did-finish-load', sendWindowState);
+  }
   win.on('closed', () => {
     win = null;
     if (!quitting) app.quit();
@@ -761,6 +773,16 @@ function nativeAddonChoices() {
     for (const file of files) add(path.join(box, file));
   }
   for (const entry of loadState().addonFiles || []) add(typeof entry === 'string' ? entry : entry.path);
+  const v25Path = renoDxV25CachePath(app.getPath('userData'));
+  if (!found.some((choice) => choice.file.toLowerCase() === RENO_DX_V25.file)) {
+    found.push({
+      path: v25Path,
+      file: RENO_DX_V25.file,
+      version: '2.5',
+      label: 'v2.5',
+      downloadable: true
+    });
+  }
   return found;
 }
 
@@ -944,6 +966,10 @@ ipcMain.handle('details', async (_event, dir) => {
   const detailsPayload = payload();
   const multipassAvailable = Boolean(detailsPayload?.source?.feeder?.multipassAddon && fs.existsSync(detailsPayload.source.feeder.multipassAddon));
   const scan = await scanGame(dir);
+  const multiFrameGenerationAvailable = Boolean(
+    detailsPayload?.source?.payload?.some((file) => /^nvngx_dlssg\.dll$/i.test(file.name)) &&
+    scan.dlssFiles.some((file) => /^nvngx_dlssg\.dll$/i.test(file.name))
+  );
   const state = loadState();
   const hasNativeDlss = installRoutes.nativeDlssPresent(scan);
   const files = [...scan.dlssFiles, ...scan.streamlineFiles]
@@ -975,6 +1001,7 @@ ipcMain.handle('details', async (_event, dir) => {
       antiCheatWarning: compatibility.hasAntiCheat(dir, e.path),
       hasNativeDlss,
       multipassAvailable,
+      multiFrameGenerationAvailable,
       apiOverride: apiPreference(state, dir, e.path),
       apiChoices: e.apiChoices || [{ api: e.api, label: e.apiLabel }],
       routes: installRoutes.routesFor({ ...e, hasNativeDlss })
@@ -1017,7 +1044,7 @@ async function exclusiveMutation(work) {
   finally { mutationBusy = false; }
 }
 
-ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, requestedAddon) => exclusiveMutation(async () => {
+ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, requestedAddon, requestedMultiFrameGeneration, requestedEffects) => exclusiveMutation(async () => {
   const p = payload();
   if (!p) return {
     ok: false,
@@ -1045,9 +1072,13 @@ ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, re
   const recommendedRoute = installRoutes.recommendedRoute(scan, target);
   const route = availableRoutes.includes(requestedRoute) ? requestedRoute
     : (availableRoutes.includes(recommendedRoute) ? recommendedRoute : availableRoutes[0]);
-  const selectedAddon = route === 'native' && target.bitness === 64 ? selectedNativeAddon(requestedAddon) : null;
+  let selectedAddon = route === 'native' && target.bitness === 64 ? selectedNativeAddon(requestedAddon) : null;
   if (requestedAddon && route === 'native' && target.bitness === 64 && !selectedAddon) {
     return { ok: false, message: 'The selected RenoDX add-on is not available.' };
+  }
+  if (selectedAddon && path.basename(selectedAddon).toLowerCase() === RENO_DX_V25.file) {
+    try { selectedAddon = await ensureRenoDxV25(app.getPath('userData')); }
+    catch (err) { return { ok: false, code: componentCode(err, 'errAddonDownload'), message: err.message }; }
   }
   if (selectedAddon) p.source.addon = selectedAddon;
 
@@ -1091,6 +1122,18 @@ ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, re
   }
 
   let optiRoot = null;
+  let mfgRoot = null;
+  if (requestedMultiFrameGeneration === true && route === 'native') {
+    if (target.bitness !== 64 || !scan.dlssFiles.some(file => /^nvngx_dlssg\.dll$/i.test(file.name))) {
+      return { ok: false, code: 'errMfgUnsupported' };
+    }
+    const existingMfgHook = path.join(path.dirname(target.path), 'version.dll');
+    const managedMfgHook = (old?.added || []).some(rel => rel.replace(/\\/g, '/').toLowerCase() ===
+      path.relative(dir, existingMfgHook).replace(/\\/g, '/').toLowerCase());
+    if (fs.existsSync(existingMfgHook) && !managedMfgHook) return { ok: false, code: 'errMfgConflict' };
+    try { mfgRoot = await rtxmfg.ensureRTXMFG(app.getPath('userData')); }
+    catch (err) { return { ok: false, code: componentCode(err, 'errMfgDownload'), message: err.message }; }
+  }
   if (route === 'optiscaler') {
     optiscaler.checkConflicts(dir, target.path, old, api);
     if (api === 'vulkan' && await vulkanLayer.existing(vulkanLayer.defaultRunner)) return { ok: false, code: 'errOptiVulkanLayer' };
@@ -1182,12 +1225,15 @@ ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, re
       emulator: target.emulator,
       source: p.source,
       optiRoot,
+      mfgRoot,
       companions,
       reshadeSetup: p.reshadeSetup,
       setupRunner: proton ? createSetupRunner(proton) : undefined,
       vulkanLayerTarget: path.join(app.getPath('userData'), 'reshade-vulkan'),
       installReShade: true,
       addMissingDlss: true,
+      multiFrameGeneration: requestedMultiFrameGeneration === true,
+      installAdditionalEffects: Array.isArray(requestedEffects) && requestedEffects.length > 0,
       addStreamline: false,
       upgradeReShade: false
     }, send);

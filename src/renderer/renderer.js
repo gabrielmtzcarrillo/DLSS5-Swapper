@@ -626,6 +626,16 @@ let jobRunning = false;
 const exeChoice = new Map();
 const routeChoice = new Map();
 const nativeAddonChoice = new Map();
+const multiFrameGenerationChoice = new Map();
+const additionalEffectsChoice = new Map();
+const RESHADE_EFFECTS = [
+  ['standard', 'ReShade standard effects'],
+  ['sweetfx', 'SweetFX'],
+  ['quint', 'qUINT'],
+  ['astrayfx', 'AstrayFX'],
+  ['immerse', 'iMMERSE']
+];
+const reshadeEffectChoices = new Map();
 
 // One row per fact, in a single panel. A wrapping grid of bordered tiles left
 // an orphan on its own line whenever the count was odd, and repeated the same
@@ -735,9 +745,11 @@ function installOptions(d, pick, dir) {
       ${!opti && route === 'feeder' ? `<label><span>${t('setFeederVersion')}</span><select id="installFeederVersion" aria-describedby="installFeederHint">
         ${d.feederVersions.map(version => `<option value="${esc(version)}"${version === d.feederVersion ? ' selected' : ''}>v${esc(version)}</option>`).join('')}
       </select></label>` : ''}
-      ${!opti && route === 'native' && pick.bitness === 64 && d.nativeAddons?.length > 1 ? `<label><span>${t('setAddonVersion')}</span><select id="installNativeAddon" aria-describedby="nativeAddonHint">
-        ${d.nativeAddons.map(item => `<option value="${esc(item.path)}">${esc(item.label)}${item.version && item.label !== `v${item.version}` ? ` · v${esc(item.version)}` : ''}</option>`).join('')}
+      ${!opti ? `<fieldset class="effect-options"><legend>${t('additionalEffects')}</legend>${RESHADE_EFFECTS.map(([id, label]) => `<label class="check-option"><span>${esc(label)}</span><input type="checkbox" data-reshade-effect="${id}"${reshadeEffectChoices.get(dir)?.has(id) ? ' checked' : ''}></label>`).join('')}</fieldset>` : ''}
+      ${!opti && route === 'native' && pick.bitness === 64 && d.nativeAddons?.length ? `<label><span>${t('setAddonVersion')}</span><select id="installNativeAddon" aria-describedby="nativeAddonHint">
+        ${d.nativeAddons.map(item => `<option value="${esc(item.path)}">${esc(item.label)}${item.downloadable ? ' · download on install' : (item.version && item.label !== `v${item.version}` ? ` · v${esc(item.version)}` : '')}</option>`).join('')}
       </select></label>` : ''}
+      ${!opti && route === 'native' && pick.bitness === 64 && d.multiFrameGenerationAvailable ? `<label class="check-option"><span>${t('multiFrameGeneration')}</span><input id="multiFrameGeneration" type="checkbox"${multiFrameGenerationChoice.get(dir) ? ' checked' : ''} aria-describedby="multiFrameGenerationHint"></label>` : ''}
     </div>
     ${apiHint}
     <div class="emu-note backend-note" id="backendHint"><span>${t(opti ? 'optiHint' : 'backendHint')}</span>
@@ -750,7 +762,8 @@ function installOptions(d, pick, dir) {
     ${warning}
     ${['d3d8', 'd3d9'].includes(api.api) ? `<div class="emu-note" id="installDgVoodooHint"><span>${t('setDgVoodooHint')}</span><span>${t('legacyRendererHint')}</span></div>` : ''}
     ${!opti && route === 'feeder' ? `<div class="emu-note" id="installFeederHint"><span>${t('setFeederHint')}</span></div>` : ''}
-    ${!opti && route === 'native' && pick.bitness === 64 && d.nativeAddons?.length > 1 ? `<div class="emu-note" id="nativeAddonHint">Select the RenoDX DLSS 5 build to install. Only one is installed at a time.</div>` : ''}
+    ${!opti && route === 'native' && pick.bitness === 64 && d.nativeAddons?.length ? `<div class="emu-note" id="nativeAddonHint">Select the RenoDX DLSS 5 build to install. Only one is installed at a time.</div>` : ''}
+    ${!opti && route === 'native' && pick.bitness === 64 && d.multiFrameGenerationAvailable ? `<div class="emu-note" id="multiFrameGenerationHint"><span>${t('multiFrameGenerationHint')}</span></div>` : ''}
     ${pick.emulator ? `<div class="emu-note"><b>${esc(pick.emulator.name)} · ${esc(pick.emulator.system)}</b><span>${esc(pick.emulator.hint)}</span><span>${t('emulatorDepthHint')}</span>${pick.emulator.key === 'xenia' ? `<span>${t('xeniaUiHint')}</span>` : ''}</div>` : ''}`;
 }
 
@@ -899,7 +912,9 @@ async function openSheet(dir, keepLog = false) {
   if (routeSelect) routeSelect.onchange = () => { routeChoice.set(dir, routeSelect.value); openSheet(dir, true); };
   const nativeAddonSelect = $('installNativeAddon');
   if (nativeAddonSelect) {
-    const current = nativeAddonChoice.get(dir) || d.nativeAddons[0]?.path;
+    const installed = d.nativeAddons.find((item) =>
+      d.addon && String(d.addon).split(/[\\/]/).pop().toLowerCase() === String(item.file).toLowerCase());
+    const current = nativeAddonChoice.get(dir) || installed?.path || d.nativeAddons[0]?.path;
     nativeAddonSelect.value = current || '';
     nativeAddonChoice.set(dir, nativeAddonSelect.value);
     nativeAddonSelect.onchange = () => nativeAddonChoice.set(dir, nativeAddonSelect.value);
@@ -911,6 +926,13 @@ async function openSheet(dir, keepLog = false) {
     routeChoice.set(dir, backendSelect.value === 'optiscaler' ? 'optiscaler' : available.includes(previous) ? previous : available[0]);
     openSheet(dir, true);
   };
+  const multiFrameGeneration = $('multiFrameGeneration');
+  if (multiFrameGeneration) multiFrameGeneration.onchange = () => multiFrameGenerationChoice.set(dir, multiFrameGeneration.checked);
+  document.querySelectorAll('[data-reshade-effect]').forEach(input => input.onchange = () => {
+    const selected = reshadeEffectChoices.get(dir) || new Set();
+    if (input.checked) selected.add(input.dataset.reshadeEffect); else selected.delete(input.dataset.reshadeEffect);
+    reshadeEffectChoices.set(dir, selected);
+  });
   $('doInstall').onclick = () => runJob('install', dir);
   $('doRestore').onclick = () => runJob('restore', dir);
 }
@@ -955,7 +977,9 @@ async function runJob(kind, dir) {
       exeChoice.get(dir) || null,
       pick ? selectedRoute(sheetDetails, pick, dir) : null,
       pick?.apiOverride || 'auto',
-      nativeAddonChoice.get(dir) || null
+      nativeAddonChoice.get(dir) || null,
+      multiFrameGenerationChoice.get(dir) === true,
+      reshadeEffectChoices.get(dir) ? [...reshadeEffectChoices.get(dir)] : []
     )
     : await window.lab.restoreGame(dir);
   } catch (error) { res = { ok: false, message: error.message }; }
@@ -1093,7 +1117,19 @@ document.addEventListener('click', () => {
 });
 
 $('winMin').onclick = () => window.lab.window('minimize');
+$('winMax').onclick = () => window.lab.window('maximize');
 $('winClose').onclick = () => window.lab.window('close');
+
+window.lab.onWindowState((maximized) => {
+  const button = $('winMax');
+  const icon = $('winMaxIcon');
+  if (!button || !icon) return;
+  button.title = maximized ? 'Restore' : 'Maximize';
+  button.setAttribute('aria-label', button.title);
+  icon.innerHTML = maximized
+    ? '<rect x="8" y="5" width="10" height="10"/><path d="M6 9v9h9"/>'
+    : '<rect x="6" y="6" width="12" height="12"/>';
+});
 
 $('themeBtn').onclick = () => {
   state.theme = state.theme === 'light' ? 'dark' : 'light';

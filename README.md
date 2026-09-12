@@ -274,6 +274,17 @@ fiddling, you can buy me a coffee.
 
 <p><a href="https://buymeacoffee.com/rakanki911"><img height="44" src="https://cdn.buymeacoffee.com/buttons/v2/lato-yellow.png" alt="Buy me a coffee"></a></p>
 
+## Credits
+
+Parts of the emulator profile table and Vulkan/Feeder installation model were
+adapted from [DLSS5-Autopilot](https://github.com/Kizzuwatnaa/DLSS5-Autopilot).
+Optional RTX 40 Multi Frame Generation support uses
+[Universal RTXMFG](https://github.com/dashdogy/RTX40MFG-Unlock), downloaded on
+demand and checksum-verified for native 64-bit games with existing DLSS Frame
+Generation.
+See [Third-party credits and licences](THIRD_PARTY_NOTICES.md) for the full
+licences and attribution notices.
+
 ---
 
 Built by **Rakan Alkhaldi** · MIT · [Third-party credits and licences](THIRD_PARTY_NOTICES.md)

@@ -37,7 +37,7 @@ test('dgVoodoo2 selection persists and rejects unknown versions without changing
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'dlss5-dgvoodoo-'));
   t.after(() => fs.rmSync(profile, { recursive: true, force: true }));
   let call = launch(profile);
-  assert.equal(call('settings').dgVoodooVersion, '2.87.4');
+  assert.equal(call('settings').dgVoodooVersion, '2.87.3');
   assert.ok(call('settings').dgVoodooVersions.includes('2.87.3'));
   assert.equal(await call('set-dgvoodoo-version', '2.87.3'), '2.87.3');
   call = launch(profile);

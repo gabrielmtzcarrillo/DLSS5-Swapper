@@ -340,7 +340,7 @@ async function installReShadeFromHelper(options) {
 async function installReShadeAt(options) {
   const {
     gameDir, exePath, api, manifest, reshadeSetup, setupRunner,
-    log, gameInstance, bitness, source
+    log, gameInstance, bitness, source, additionalEffects
   } = options;
   const exeDir = path.dirname(exePath);
   const hook = hookForApi(api);
@@ -350,7 +350,7 @@ async function installReShadeAt(options) {
   // headless setup against host64 can choose/leave the wrong proxy.
   const bundled = source && source.feeder && source.feeder.vulkanLayerDir
     ? path.join(source.feeder.vulkanLayerDir, `ReShade${bitness}.dll`) : null;
-  if (bundled && fs.existsSync(bundled)) {
+  if (bundled && fs.existsSync(bundled) && !additionalEffects) {
     if (pe.getBitness(bundled) !== bitness || !isAddonReShade(bundled)) throw fail('errReShadeArchitecture');
     const existed = fs.existsSync(hookPath);
     await copyTracked(manifest, gameDir, bundled, hookPath, { kind: 'reshade' });
@@ -362,7 +362,7 @@ async function installReShadeAt(options) {
     log('reshadeInstalled', { version: pe.getFileVersion(hookPath), file: hook, bitness });
     return hookPath;
   }
-  if (isAddonReShade(hookPath) && (!bitness || !pe.getBitness(hookPath) || pe.getBitness(hookPath) === bitness)) {
+  if (!additionalEffects && isAddonReShade(hookPath) && (!bitness || !pe.getBitness(hookPath) || pe.getBitness(hookPath) === bitness)) {
     log('reshadeAlreadyThere', {
       version: pe.getFileVersion(hookPath), file: hook, kind: 'proxy', addonSupport: true
     });
@@ -385,7 +385,7 @@ async function installReShadeAt(options) {
   await saveActiveManifest(gameDir, manifest);
   let result;
   try {
-    result = await runner(reshadeSetup, [exePath, '--api', api, '--headless'], log);
+    result = await runner(reshadeSetup, [exePath, '--api', api, ...(additionalEffects ? [] : ['--headless'])], log);
   } catch (error) {
     captureReShadeAttempt(manifest, exeDir, known, hook, hookExisted);
     await saveActiveManifest(gameDir, manifest);
@@ -409,7 +409,8 @@ async function installReShadeAt(options) {
 async function applyFeeder(config, log) {
   const {
     gameDir, exePath, api, source, reshadeSetup, setupRunner,
-    bitness: requestedBitness, vulkanLayerTarget, registryRunner, emulator
+    bitness: requestedBitness, vulkanLayerTarget, registryRunner, emulator,
+    installAdditionalEffects: additionalEffects
   } = config;
   const bitness = requestedBitness || pe.getBitness(exePath);
   const exeDir = path.dirname(exePath);
@@ -486,7 +487,7 @@ async function applyFeeder(config, log) {
     log('vulkanLayerInstalled', { global: true, manifest: manifest.vulkanLayer.manifest });
   } else {
     await installReShadeAt({
-      gameDir, exePath, api: reshadeApi, manifest, reshadeSetup, setupRunner, log, gameInstance: true, bitness, source
+      gameDir, exePath, api: reshadeApi, manifest, reshadeSetup, setupRunner, log, gameInstance: true, bitness, source, additionalEffects
     });
   }
 
@@ -652,7 +653,8 @@ async function applySwap(config, onLog) {
   if (bitness === 32 || config.route === 'feeder') return applyFeeder(config, log);
   const {
     gameDir, exePath, api, source, reshadeSetup, setupRunner,
-    installReShade, addMissingDlss, upgradeReShade
+    installReShade, addMissingDlss, upgradeReShade, mfgRoot,
+    installAdditionalEffects: additionalEffects
   } = config;
   const exeDir = path.dirname(exePath);
 
@@ -671,6 +673,7 @@ async function applySwap(config, onLog) {
 
   const payloadByName = new Map(source.payload.map((f) => [f.name.toLowerCase(), f]));
   const existing = scan.dlssFiles.filter(file => /^nvngx_dlss(?:nr)?\.dll$/i.test(file.name));
+  const existingFrameGeneration = scan.dlssFiles.filter(file => /^nvngx_dlssg\.dll$/i.test(file.name));
 
   // Streamline plugins/interposer belong to the game's SDK integration; a
   // newer DLL is not necessarily a drop-in ABI match. Leave SL/FG/RR intact.
@@ -689,6 +692,22 @@ async function applySwap(config, onLog) {
     }
     await copyTracked(manifest, gameDir, replacement.path, file.path, { oldVersion: file.version, newVersion: replacement.version });
     log('replaced', { rel: file.rel, from: file.version, to: replacement.version });
+  }
+
+  // DLSS 4 Multi Frame Generation is delivered by the DLSS-G runtime. It is
+  // intentionally opt-in: unlike SR/NR, DLSS-G is tightly coupled to the
+  // game's Streamline integration and replacing it for every native install
+  // can regress games that only support the older FG ABI. Only upgrade an
+  // existing runtime, never introduce FG into a game that did not ship it.
+  if (config.multiFrameGeneration === true && mfgRoot) {
+    if (bitness !== 64 || !existingFrameGeneration.length) throw fail('errMfgUnsupported');
+    const sourceMfg = path.join(mfgRoot, 'RTXMFG.dll');
+    if (!fs.existsSync(sourceMfg) || pe.getBitness(sourceMfg) !== 64) throw fail('errMfgPayload');
+    const hook = path.join(exeDir, 'version.dll');
+    const hookRel = path.relative(gameDir, hook);
+    if (fs.existsSync(hook) && !wasAdded(manifest, hookRel)) throw fail('errMfgConflict');
+    await copyTracked(manifest, gameDir, sourceMfg, hook, { kind: 'mfg' });
+    log('mfgInstalled', { rel: hookRel, version: '1.3.2' });
   }
 
   // 2) Files that have to sit beside the executable no matter what the game
@@ -756,8 +775,10 @@ async function applySwap(config, onLog) {
   const installingFresh = installReShade && (!before.installed || (before.kind === 'proxy' && !before.addonSupport));
 
   const directProxy = source.feeder && fs.existsSync(path.join(source.feeder.vulkanLayerDir || '', `ReShade${bitness}.dll`));
-  if (installingFresh && directProxy) {
-    await installReShadeAt({ gameDir, exePath, api, bitness, source, manifest, reshadeSetup, setupRunner, log, gameInstance: true });
+  if (additionalEffects && haveSetup && before.installed) {
+    await installReShadeAt({ gameDir, exePath, api, bitness, source, manifest, reshadeSetup, setupRunner, log, gameInstance: true, additionalEffects });
+  } else if (installingFresh && directProxy) {
+    await installReShadeAt({ gameDir, exePath, api, bitness, source, manifest, reshadeSetup, setupRunner, log, gameInstance: true, additionalEffects });
   } else if (!haveSetup && (installingFresh || upgradingAsi || upgradingProxy)) {
     log('reshadeSetupMissing');
   } else if (upgradingAsi) {
@@ -799,7 +820,7 @@ async function applySwap(config, onLog) {
     await saveActiveManifest(gameDir, manifest);
     let result;
     try {
-      result = await setup(reshadeSetup, [exePath, '--api', api, '--headless'], log);
+      result = await setup(reshadeSetup, [exePath, '--api', api, ...(additionalEffects ? [] : ['--headless'])], log);
     } catch (error) {
       captureReShadeAttempt(manifest, exeDir, known, path.basename(hookPath), hookExisted);
       await saveActiveManifest(gameDir, manifest);

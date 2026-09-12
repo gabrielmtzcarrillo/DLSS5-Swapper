@@ -22,6 +22,17 @@ NVIDIA's Neural Rendering runtime is not supplied by this OptiScaler release.
 This integration uses the existing Swapper payload's `nvngx_dlssnr.dll`; it
 does not relicense that file or imply NVIDIA support for the integration.
 
+## Universal RTXMFG (optional download)
+
+The optional RTX 40 Multi Frame Generation component downloads the MIT-licensed
+`RTXMFG.dll` from the Universal RTXMFG v1.3.2 release:
+https://github.com/dashdogy/RTX40MFG-Unlock
+
+The release archive is downloaded on demand and verified with the pinned SHA-256
+checksum in `src/core/rtxmfg.js`. It is installed as `version.dll` only for
+native 64-bit games that already ship DLSS Frame Generation. The upstream DLL is
+not bundled or modified.
+
 ## DLSS5-Feeder
 
 The bundled client add-ons, 64-bit helper, shader and diagnostic verifier are

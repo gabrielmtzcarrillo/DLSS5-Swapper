@@ -10,15 +10,15 @@ const extractZip = require('extract-zip');
 const pe = require('./pe');
 
 const DGVOODOO = {
-  version: '2.87.4',
-  url: 'https://github.com/dege-diosg/dgVoodoo2/releases/download/v2.87.4/dgVoodoo2_87_4.zip',
-  sha256: '74aeb464d829db80e3f4aa8fae235e6e3b38fc01188776c5c2376bb0dea0956e'
-};
-
-const DGVOODOO_VERSIONS = [DGVOODOO, {
   version: '2.87.3',
   url: 'https://github.com/dege-diosg/dgVoodoo2/releases/download/v2.87.3/dgVoodoo2_87_3.zip',
   sha256: '6fb954bed55bf70e948c5045a663a9df31ea206faf105e327bafe46c318f867f'
+};
+
+const DGVOODOO_VERSIONS = [DGVOODOO, {
+  version: '2.87.4',
+  url: 'https://github.com/dege-diosg/dgVoodoo2/releases/download/v2.87.4/dgVoodoo2_87_4.zip',
+  sha256: '74aeb464d829db80e3f4aa8fae235e6e3b38fc01188776c5c2376bb0dea0956e'
 }];
 
 function dgVoodooRelease(version = DGVOODOO.version) {
