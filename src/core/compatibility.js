@@ -75,7 +75,7 @@ function assertLoaderCompatible(config, manifest) {
     throw problem('errLoaderConflict', reshade.file);
   }
   for (const name of fs.readdirSync(dir)) {
-    if (!/^(dxgi|d3d8|d3d9|d3d10|d3d10core|d3d11|d3d12|opengl32)\.dll$/i.test(name)) continue;
+    if (!/^(dxgi|ddraw|d3d8|d3d9|d3d10|d3d10core|d3d11|d3d12|opengl32)\.dll$/i.test(name)) continue;
     const file = safePath(gameDir, path.relative(gameDir, path.join(dir, name)));
     if (pe.versionMentions(file, 'ReShade') && ++reshadeHooks > 1) throw problem('errLoaderConflict', 'Multiple ReShade hooks: ' + dir);
     const key = path.relative(gameDir, file).replace(/\\/g, '/').toLowerCase();

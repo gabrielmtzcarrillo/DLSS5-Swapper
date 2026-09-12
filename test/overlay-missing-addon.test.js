@@ -77,3 +77,31 @@ test('installing without the add-on says where the file went' , (t) => {
     return true;
   });
 });
+
+// The install does not stop when the overlay cannot be installed - DLSS is the
+// job and the overlay rides along - so the reason lives in one line of the
+// install log. That line was printed as a raw code, and its translation took a
+// params object the spoken path never passes, so it read "undefined" if it had
+// ever been reached at all.
+test('the reason an overlay was skipped is said in words, not as a code', () => {
+  const vm = require('node:vm');
+  const context = vm.createContext({ window: {} });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '../src/renderer/i18n.js'), 'utf8'), context, { filename: 'i18n.js' });
+  const ui = context.window.i18n;
+
+  const event = { code: 'overlaySkipped', params: { error: 'The overlay add-on is missing from this app: dlss5-lab-overlay.addon64.' } };
+  // Exactly how src/renderer/renderer.js renders a spoken job code.
+  const spoken = code => ui.t(code, ...Object.values(event.params));
+
+  for (const lang of ['en', 'ar']) {
+    ui.setLang(lang);
+    const line = spoken(event.code);
+    assert.ok(line.includes(event.params.error), `${lang}: the reason itself is shown`);
+    assert.ok(!line.includes('undefined'), `${lang}: no placeholder left unfilled`);
+    assert.notEqual(line, event.code, `${lang}: not the bare code`);
+  }
+
+  const renderer = fs.readFileSync(path.join(__dirname, '../src/renderer/renderer.js'), 'utf8');
+  assert.match(renderer, /SPOKEN_JOB_CODES = new Set\(\[[^\]]*'overlaySkipped'/,
+    'and the renderer actually speaks it');
+});

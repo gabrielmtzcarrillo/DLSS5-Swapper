@@ -71,3 +71,22 @@ test('being offline, rate-limited or blocked says nothing at all', async (t) => 
     assert.equal(answer.current, '2.2.1', 'and the running version is still reported');
   }
 });
+
+// A lookup that could not run reported {latest: null, newer: false}, which the
+// sidebar rendered exactly like "nothing new". Someone on an old build whose
+// check never completed was told nothing and had no reason to go and look.
+test('a failed lookup is distinguishable from being up to date', () => {
+  const failed = { current: '2.2.2', latest: null, newer: false };
+  const current = { current: '2.2.3', latest: '2.2.3', newer: false };
+  const behind = { current: '2.2.2', latest: '2.2.3', newer: true };
+
+  // Exactly the branch order src/renderer/renderer.js uses.
+  const shown = (a) => !a ? 'nothing' : !a.latest ? 'failed' : !a.newer ? 'nothing' : 'update';
+  assert.equal(shown(failed), 'failed');
+  assert.equal(shown(current), 'nothing');
+  assert.equal(shown(behind), 'update');
+
+  const renderer = fs.readFileSync(path.join(__dirname, '../src/renderer/renderer.js'), 'utf8');
+  assert.match(renderer, /if \(!answer\.latest\) \{[\s\S]*updateCheckFailed/,
+    'the renderer separates the two before it decides there is no news');
+});
