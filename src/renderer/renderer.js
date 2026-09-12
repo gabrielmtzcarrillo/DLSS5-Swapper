@@ -629,11 +629,11 @@ const nativeAddonChoice = new Map();
 const multiFrameGenerationChoice = new Map();
 const additionalEffectsChoice = new Map();
 const RESHADE_EFFECTS = [
-  ['standard', 'ReShade standard effects'],
-  ['sweetfx', 'SweetFX'],
-  ['quint', 'qUINT'],
-  ['astrayfx', 'AstrayFX'],
-  ['immerse', 'iMMERSE']
+  ['standard', 'ReShade standard effects', 'General-purpose color, sharpening, depth and utility effects.'],
+  ['sweetfx', 'SweetFX', 'Classic color grading, sharpening, bloom and film-style adjustments.'],
+  ['quint', 'qUINT', 'Advanced screen-space effects such as ambient occlusion, reflections and bloom.'],
+  ['astrayfx', 'AstrayFX', 'Stylized and cinematic effects for creative looks and atmosphere.'],
+  ['immerse', 'iMMERSE', 'Modern post-processing effects focused on image quality and cinematic presentation.']
 ];
 const reshadeEffectChoices = new Map();
 
@@ -745,7 +745,7 @@ function installOptions(d, pick, dir) {
       ${!opti && route === 'feeder' ? `<label><span>${t('setFeederVersion')}</span><select id="installFeederVersion" aria-describedby="installFeederHint">
         ${d.feederVersions.map(version => `<option value="${esc(version)}"${version === d.feederVersion ? ' selected' : ''}>v${esc(version)}</option>`).join('')}
       </select></label>` : ''}
-      ${!opti ? `<fieldset class="effect-options"><legend>${t('additionalEffects')}</legend>${RESHADE_EFFECTS.map(([id, label]) => `<label class="check-option"><span>${esc(label)}</span><input type="checkbox" data-reshade-effect="${id}"${reshadeEffectChoices.get(dir)?.has(id) ? ' checked' : ''}></label>`).join('')}</fieldset>` : ''}
+      ${!opti ? `<fieldset class="effect-options"><legend>${t('additionalEffects')}</legend>${RESHADE_EFFECTS.map(([id, label, description]) => `<label class="check-option"><span><b>${esc(label)}</b><small>${esc(description)}</small></span><input type="checkbox" data-reshade-effect="${id}"${reshadeEffectChoices.get(dir)?.has(id) ? ' checked' : ''}></label>`).join('')}</fieldset>` : ''}
       ${!opti && route === 'native' && pick.bitness === 64 && d.nativeAddons?.length ? `<label><span>${t('setAddonVersion')}</span><select id="installNativeAddon" aria-describedby="nativeAddonHint">
         ${d.nativeAddons.map(item => `<option value="${esc(item.path)}">${esc(item.label)}${item.downloadable ? ' · download on install' : (item.version && item.label !== `v${item.version}` ? ` · v${esc(item.version)}` : '')}</option>`).join('')}
       </select></label>` : ''}
