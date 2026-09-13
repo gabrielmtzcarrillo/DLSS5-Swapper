@@ -750,15 +750,20 @@ function companionAddons() {
 function nativeAddonChoices() {
   const wanted = new Set(['renodx-dlss5.addon64', ...RENODX_VERSIONS.map((item) => item.file.toLowerCase())]);
   const found = [];
-  const seen = new Set();
+  const seenPaths = new Set();
+  const seenContent = new Set();
   const add = (file) => {
     if (!file || !wanted.has(path.basename(file).toLowerCase()) || !fs.existsSync(file)) return;
     const resolved = path.resolve(file);
     const key = resolved.toLowerCase();
-    if (seen.has(key)) return;
+    if (seenPaths.has(key)) return;
     const row = describe(resolved, null);
     if (!row) return;
-    seen.add(key);
+    // Identity is the content, not the path: a stale copy left in a different
+    // folder by an earlier build must not present the same build twice.
+    if (seenContent.has(row.id)) return;
+    seenPaths.add(key);
+    seenContent.add(row.id);
     // Prefer the human-facing release in a versioned filename (for example
     // renodx-dlss5-v2.5.addon64). The bundled build has its release name in
     // KNOWN, while third-party files can still fall back to their PE version.
@@ -784,7 +789,7 @@ function nativeAddonChoices() {
       path: renodxCachePath(app.getPath('userData'), item.version),
       file: item.file,
       version: item.version,
-      label: `v${item.version}`,
+      label: item.label || `v${item.version}`,
       downloadable: true
     });
   }
