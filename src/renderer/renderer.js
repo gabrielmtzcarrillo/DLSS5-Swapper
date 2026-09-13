@@ -4,7 +4,7 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 const { t, setLang, getLang, dirOf, LANGS } = window.i18n;
-const state = { games: [], recents: [], history: [], newDlss: null, log: [], theme: 'light', lang: 'en', logo: {}, groupGamesByStore: true };
+const state = { games: [], recents: [], newDlss: null, log: [], theme: 'light', lang: 'en', logo: {}, groupGamesByStore: true };
 const filters = { query: '', api: 'all', dlss: 'all', addon: 'all' };
 const gameFilters = window.gameFilters;
 
@@ -23,7 +23,6 @@ const ICON = {
 
 // ---------------- log ----------------
 
-const TICK = '<svg viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M5 12.5 9.5 17 19 7.5"/></svg>';
 // Under ten megabytes a whole number rounds a 0.4 MB add-on down to "0 MB".
 const MB = (bytes) => {
   const mb = bytes / 1048576;
@@ -65,9 +64,7 @@ function setStatus(text, percent) {
 function show(view) {
   for (const s of document.querySelectorAll('.view')) s.classList.toggle('active', s.id === 'view-' + view);
   for (const b of document.querySelectorAll('.nav-item')) b.classList.toggle('active', b.dataset.view === view);
-  if (view === 'history') renderHistory();
   if (view === 'settings') renderSettings();
-  if (view === 'addons') renderAddons();
 }
 
 for (const link of document.querySelectorAll('[data-project]')) {
@@ -275,144 +272,6 @@ $('gameQuickFilters').onclick = (event) => {
   const { filter, value } = button.dataset;
   filters[filter] = filters[filter] === value ? 'all' : value;
   renderGames();
-};
-
-// ---------------- history / settings ----------------
-
-let historyRenderId = 0;
-async function renderHistory() {
-  const requestId = ++historyRenderId;
-  $('copyHistory').disabled = true;
-  $('historyWarning').classList.add('hidden');
-  let result;
-  try {
-    result = await window.lab.history();
-    if (!Array.isArray(result?.rows)) throw new Error('Invalid history response');
-  }
-  catch {
-    if (requestId !== historyRenderId) return;
-    state.history = [];
-    $('history').innerHTML = `<p class="pad">${esc(t('historyLoadFailed'))}</p>`;
-    return;
-  }
-  if (requestId !== historyRenderId) return;
-  const rows = state.history = result.rows;
-  $('historyWarning').classList.toggle('hidden', !result.warning);
-  $('historyWarning').textContent = result.warning ? t('historySaveWarning') : '';
-  $('copyHistory').disabled = rows.length === 0;
-  $('history').innerHTML = rows.length
-    ? rows.map((r) => `<div class="hist-row">
-        <div class="n"><bdi>${esc(r.name)}</bdi> <span class="undone">${esc(historyAction(r))}</span>
-          <div class="d" dir="auto">${esc(r.dir)}</div>
-          ${r.exe ? `<div class="d" dir="auto">${esc(r.exe)}</div>` : ''}
-          ${r.route || r.api ? `<div class="d">${esc([historyRoute(r), r.api].filter(Boolean).join(' · '))}</div>` : ''}
-        </div>
-        <div class="c">${esc(t('replacedAdded', r.replaced, r.added))}</div>
-        <div class="d">${esc(new Date(r.date).toLocaleString(state.lang))}</div>
-      </div>`).join('')
-    : `<div class="pad" style="color:var(--dim);font-size:13.5px">${t('histEmpty')}</div>`;
-}
-
-const historyRoute = row => ({ native: 'ReShade / RenoDX', feeder: 'ReShade / DLSS5-Feeder', renodx: 'RenoDX DLSS Tool (multipass)', optiscaler: 'OptiScaler DLSS-NR' }[row.route] || row.route || '');
-function historyAction(row) {
-  if (row.action === 'restore') return t('restored');
-  if (row.action === 'recovery') return t('historyRecovered');
-  return t(row.imported ? 'historySnapshot' : 'installed');
-}
-function historyText() {
-  return state.history.map(row => [
-    `[${row.date}] ${historyAction(row)} — ${row.name}`,
-    row.dir, row.exe,
-    [historyRoute(row), row.api].filter(Boolean).join(' · '),
-    t('replacedAdded', row.replaced, row.added)
-  ].filter(Boolean).join('\n')).join('\n\n');
-}
-
-// ---------------- add-on builds ----------------
-
-async function renderAddons() {
-  const rows = await window.lab.addons();
-  $('addonList').innerHTML = rows.length ? rows.map((a) => `
-    <div class="addon${a.active ? ' on' : ''}">
-      <div class="mark">${a.active ? TICK : ''}</div>
-      <div class="body">
-        <div class="t">${esc(a.label)}${a.replaces ? `<span class="tag">${t('addonReplaces')}</span>` : ''}${
-          a.warn ? `<span class="tag warn">${esc(a.warn)}</span>` : ''}${
-          a.caution ? `<span class="tag warn">${t(a.caution)}</span>` : ''}</div>
-        <div class="d">${esc(a.file)}${a.version ? ' · ' + esc(a.version) : ''} · ${MB(a.size)}</div>
-        ${a.notes ? `<ul class="notes">${a.notes.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
-      </div>
-      <button class="toggle" role="switch" aria-checked="${a.active}" data-path="${esc(a.path)}"
-              title="${a.active ? t('addonDeactivate') : t('addonActivate')}">
-        <span class="knob"></span>
-      </button>
-      ${a.custom
-        ? `<button class="drop" data-remove="${esc(a.path)}" title="${t('addonRemove')}">
-             <svg viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
-           </button>`
-        : ''}
-    </div>`).join('') : `<p class="hint">${t('logEmpty')}</p>`;
-
-  const set = async (b, file, on) => {
-    b.disabled = true;
-    const res = await window.lab.addonToggle(file, on);
-    if (!res.ok) { log(res.message); b.disabled = false; return; }
-    // Only reported when one build had to step aside for another's file name.
-    if (res.replaced) log(t('addonNameClash', res.replaced));
-    renderAddons();
-  };
-  // Each switch stands on its own: turning one on leaves the others as they are.
-  for (const b of $('addonList').querySelectorAll('.toggle')) {
-    b.onclick = () => set(b, b.dataset.path, b.getAttribute('aria-checked') !== 'true');
-  }
-  // Only builds added by hand can be dropped; the ones found in folders and the
-  // one shipped with the app are not the list's to delete.
-  for (const b of $('addonList').querySelectorAll('[data-remove]')) {
-    b.onclick = async () => {
-      b.disabled = true;
-      await window.lab.addonRemove(b.dataset.remove);
-      renderAddons();
-    };
-  }
-}
-
-// Picking a file only opens the dialog; nothing is saved until it is confirmed,
-// so a mis-click costs nothing.
-let pendingAddon = null;
-
-function closeDialog() {
-  $('dlgOverlay').classList.add('hidden');
-  pendingAddon = null;
-}
-
-$('addonAdd').onclick = async () => {
-  const picked = await window.lab.addonPick();
-  if (!picked) return;
-  if (picked.error) { log(picked.error); return; }
-
-  pendingAddon = picked;
-  $('dlgFile').textContent =
-    picked.file + (picked.version ? ' · ' + picked.version : '') + ' · ' + MB(picked.size);
-  $('dlgName').value = picked.suggestedName || '';
-  $('dlgDesc').value = '';
-  $('dlgTag').value = '';
-  $('dlgOverlay').classList.remove('hidden');
-  $('dlgName').focus();
-  $('dlgName').select();
-};
-
-$('dlgCancel').onclick = closeDialog;
-$('dlgOverlay').onclick = (e) => { if (e.target === $('dlgOverlay')) closeDialog(); };
-$('dlgSave').onclick = async () => {
-  if (!pendingAddon) return;
-  await window.lab.addonSave({
-    path: pendingAddon.path,
-    name: $('dlgName').value,
-    description: $('dlgDesc').value,
-    tag: $('dlgTag').value
-  });
-  closeDialog();
-  renderAddons();
 };
 
 async function renderSettings() {
@@ -628,6 +487,8 @@ const routeChoice = new Map();
 const dgVoodooVersionChoice = new Map();
 const nativeAddonChoice = new Map();
 const multiFrameGenerationChoice = new Map();
+const mfgVersionChoice = new Map();
+const dlssSourceChoice = new Map();
 const additionalEffectsChoice = new Map();
 const RESHADE_EFFECTS = [
   ['standard', 'ReShade standard effects', 'General-purpose color, sharpening, depth and utility effects.'],
@@ -724,6 +585,8 @@ function installOptions(d, pick, dir) {
   const optiReason = window.installRoutes.optiReason(window.renderingApi.effective(pick, pick.apiOverride || 'auto'));
   const legacy = ['d3d8', 'd3d9'].includes(api.api);
   const selectedDgVoodoo = dgVoodooVersionChoice.get(dir) || d.dgVoodooVersion;
+  const selectedMfg = mfgVersionChoice.get(dir) || d.mfgVersion;
+  const selectedDlssSource = dlssSourceChoice.get(dir) || '';
   const componentVersions = [];
   if (legacy) componentVersions.push(`dgVoodoo2 v${selectedDgVoodoo}`);
   if (!opti && route === 'feeder') {
@@ -754,11 +617,17 @@ function installOptions(d, pick, dir) {
       ${!opti && route === 'feeder' ? `<label><span>${t('setFeederVersion')}</span><select id="installFeederVersion" aria-describedby="installFeederHint">
         ${d.feederVersions.map(version => `<option value="${esc(version)}"${version === d.feederVersion ? ' selected' : ''}>v${esc(version)}</option>`).join('')}
       </select></label>` : ''}
+      ${d.dlssSources?.length > 1 ? `<label><span>${t('setDlssSource')}</span><select id="installDlssSource" aria-describedby="installDlssHint">
+        ${d.dlssSources.map(item => `<option value="${esc(item.path || '')}"${(item.path || '') === selectedDlssSource ? ' selected' : ''}>${esc(item.label)}</option>`).join('')}
+      </select></label>` : ''}
       ${!opti ? `<fieldset class="effect-options"><legend>${t('additionalEffects')}</legend>${RESHADE_EFFECTS.map(([id, label, description]) => `<label class="check-option"><span><b>${esc(label)}</b><small>${esc(description)}</small></span><input type="checkbox" data-reshade-effect="${id}"${reshadeEffectChoices.get(dir)?.has(id) ? ' checked' : ''}></label>`).join('')}</fieldset>` : ''}
       ${!opti && route === 'native' && pick.bitness === 64 && d.nativeAddons?.length ? `<label><span>${t('setAddonVersion')}</span><select id="installNativeAddon" aria-describedby="nativeAddonHint">
         ${d.nativeAddons.map(item => `<option value="${esc(item.path)}">${esc(item.label)}${item.downloadable ? ' · download on install' : (item.version && item.label !== `v${item.version}` ? ` · v${esc(item.version)}` : '')}</option>`).join('')}
       </select></label>` : ''}
-      ${!opti && route === 'native' && pick.bitness === 64 && d.multiFrameGenerationAvailable ? `<label class="check-option"><span>${t('multiFrameGeneration')}</span><input id="multiFrameGeneration" type="checkbox"${multiFrameGenerationChoice.get(dir) ? ' checked' : ''} aria-describedby="multiFrameGenerationHint"></label>` : ''}
+      ${!opti && route === 'native' && pick.bitness === 64 && pick.multiFrameGenerationAvailable ? `<label class="check-option"><span>${t('multiFrameGeneration')}</span><input id="multiFrameGeneration" type="checkbox"${multiFrameGenerationChoice.get(dir) ? ' checked' : ''} aria-describedby="multiFrameGenerationHint"></label>` : ''}
+      ${!opti && route === 'native' && pick.bitness === 64 && pick.multiFrameGenerationAvailable && multiFrameGenerationChoice.get(dir) && d.mfgVersions?.length ? `<label><span>${t('setMfgVersion')}</span><select id="installMfgVersion" aria-describedby="installMfgHint">
+        ${d.mfgVersions.map(version => `<option value="${esc(version)}"${version === selectedMfg ? ' selected' : ''}>RTX40MFG v${esc(version)}</option>`).join('')}
+      </select></label>` : ''}
     </div>
     ${apiHint}
     <div class="emu-note backend-note" id="backendHint"><span>${t(opti ? 'optiHint' : 'backendHint')}</span>
@@ -769,11 +638,13 @@ function installOptions(d, pick, dir) {
     </div>
     ${pick.installIssue ? `<div class="emu-note compatibility-warning" role="alert">${t(pick.installIssue)}</div>` : ''}
     ${warning}
+    ${d.dlssSources?.length > 1 ? `<div class="emu-note" id="installDlssHint"><span>${t('setDlssHint')}</span></div>` : ''}
     ${legacy ? `<div class="emu-note" id="installDgVoodooHint"><span>${t('setDgVoodooHint')}</span><span>${t('legacyRendererHint')}</span><span>${t('legacyDlssOptionsHint')}</span></div>` : ''}
     ${componentVersions.length ? `<div class="emu-note" id="installComponentsHint"><b>${t('installComponents')}</b>${componentVersions.map(esc).map(value => `<span>${value}</span>`).join('')}</div>` : ''}
     ${!opti && route === 'feeder' ? `<div class="emu-note" id="installFeederHint"><span>${t('setFeederHint')}</span></div>` : ''}
     ${!opti && route === 'native' && pick.bitness === 64 && d.nativeAddons?.length ? `<div class="emu-note" id="nativeAddonHint">Select the RenoDX DLSS 5 build to install. Only one is installed at a time.</div>` : ''}
-    ${!opti && route === 'native' && pick.bitness === 64 && d.multiFrameGenerationAvailable ? `<div class="emu-note" id="multiFrameGenerationHint"><span>${t('multiFrameGenerationHint')}</span></div>` : ''}
+    ${!opti && route === 'native' && pick.bitness === 64 && pick.multiFrameGenerationAvailable ? `<div class="emu-note" id="multiFrameGenerationHint"><span>${t('multiFrameGenerationHint')}</span></div>` : ''}
+    ${!opti && route === 'native' && pick.bitness === 64 && pick.multiFrameGenerationAvailable && multiFrameGenerationChoice.get(dir) && d.mfgVersions?.length ? `<div class="emu-note" id="installMfgHint"><span>${t('setMfgHint')}</span></div>` : ''}
     ${pick.emulator ? `<div class="emu-note"><b>${esc(pick.emulator.name)} · ${esc(pick.emulator.system)}</b><span>${esc(pick.emulator.hint)}</span><span>${t('emulatorDepthHint')}</span>${pick.emulator.key === 'xenia' ? `<span>${t('xeniaUiHint')}</span>` : ''}</div>` : ''}`;
 }
 
@@ -817,6 +688,9 @@ async function openSheet(dir, keepLog = false) {
   if (!dgVoodooVersionChoice.has(dir)) dgVoodooVersionChoice.set(dir, d.dgVoodooVersion);
   d.feederVersions = settings.feederVersions;
   d.feederVersion = settings.feederVersion;
+  d.mfgVersions = settings.mfgVersions;
+  d.mfgVersion = settings.mfgVersion;
+  if (!mfgVersionChoice.has(dir)) mfgVersionChoice.set(dir, d.mfgVersion);
   sheetDetails = d;
   if (!exeChoice.has(dir) && d.installedExe) {
     const installed = d.exes.find((item) => item.rel.toLowerCase() === String(d.installedExe).toLowerCase());
@@ -923,6 +797,8 @@ async function openSheet(dir, keepLog = false) {
     nativeAddonChoice.set(dir, nativeAddonSelect.value);
     nativeAddonSelect.onchange = () => nativeAddonChoice.set(dir, nativeAddonSelect.value);
   }
+  const dlssSourceSelect = $('installDlssSource');
+  if (dlssSourceSelect) dlssSourceSelect.onchange = () => dlssSourceChoice.set(dir, dlssSourceSelect.value);
   const backendSelect = $('backendChoice');
   if (backendSelect) backendSelect.onchange = () => {
     const available = routesFor(pick).filter(route => route !== 'optiscaler');
@@ -931,7 +807,13 @@ async function openSheet(dir, keepLog = false) {
     openSheet(dir, true);
   };
   const multiFrameGeneration = $('multiFrameGeneration');
-  if (multiFrameGeneration) multiFrameGeneration.onchange = () => multiFrameGenerationChoice.set(dir, multiFrameGeneration.checked);
+  if (multiFrameGeneration) multiFrameGeneration.onchange = async () => {
+    multiFrameGenerationChoice.set(dir, multiFrameGeneration.checked);
+    await openSheet(dir, true);
+    $('multiFrameGeneration')?.focus();
+  };
+  const mfgVersionSelect = $('installMfgVersion');
+  if (mfgVersionSelect) mfgVersionSelect.onchange = () => mfgVersionChoice.set(dir, mfgVersionSelect.value);
   document.querySelectorAll('[data-reshade-effect]').forEach(input => input.onchange = () => {
     const selected = reshadeEffectChoices.get(dir) || new Set();
     if (input.checked) selected.add(input.dataset.reshadeEffect); else selected.delete(input.dataset.reshadeEffect);
@@ -987,7 +869,9 @@ async function runJob(kind, dir) {
       $('installNativeAddon')?.value || nativeAddonChoice.get(dir) || null,
       multiFrameGenerationChoice.get(dir) === true,
       reshadeEffectChoices.get(dir) ? [...reshadeEffectChoices.get(dir)] : [],
-      $('installDgVoodooVersion')?.value || dgVoodooVersionChoice.get(dir) || null
+      $('installDgVoodooVersion')?.value || dgVoodooVersionChoice.get(dir) || null,
+      $('installMfgVersion')?.value || mfgVersionChoice.get(dir) || null,
+      $('installDlssSource')?.value || dlssSourceChoice.get(dir) || null
     )
     : await window.lab.restoreGame(dir);
   } catch (error) { res = { ok: false, message: error.message }; }
@@ -997,7 +881,6 @@ async function runJob(kind, dir) {
   if (res.ok) {
     jobLog(kind === 'install' ? `done - ${res.replaced} replaced, ${res.added} added` : 'done - originals restored');
     log(`${kind === 'install' ? 'Installed' : 'Restored'}: ${dir}`);
-    if ($('view-history').classList.contains('active')) await renderHistory();
     // Recent Games tracks what was actually swapped, not what was browsed.
     state.recents = await window.lab.touch(dir);
     renderRecent();
@@ -1029,8 +912,6 @@ $('nav').onclick = (e) => {
   const b = e.target.closest('.nav-item');
   if (b) show(b.dataset.view);
 };
-document.querySelector('.link[data-view]').onclick = () => show('games');
-
 // The wordmark is black artwork, so the dark theme gets the lifted copy.
 function paintBrand() {
   const art = state.theme === 'dark' ? (state.logo.logoDark || state.logo.logo) : state.logo.logo;
@@ -1055,9 +936,7 @@ function applyLang(code) {
   renderRecent();
   renderGames();
   const view = document.querySelector('.view.active');
-  if (view && view.id === 'view-history') renderHistory();
   if (view && view.id === 'view-settings') renderSettings();
-  if (view && view.id === 'view-addons') renderAddons();
   if (sheetGame) openSheet(sheetGame.dir, true);
 }
 
@@ -1148,7 +1027,7 @@ $('themeBtn').onclick = () => {
 
 $('browseBtn').onclick = async () => {
   const dir = await window.lab.addGame();
-  if (dir) { show('home'); pickGame(dir); }
+  if (dir) pickGame(dir);
 };
 $('addGame').onclick = async () => { const d = await window.lab.addGame(); if (d) load(); };
 $('addFolder').onclick = async () => { if (await window.lab.addFolder()) load(); };
@@ -1158,7 +1037,6 @@ $('rescan').onclick = async () => {
 };
 $('clearLog').onclick = () => { state.log = []; renderLog(); };
 $('copyLog').onclick = () => copyText(state.log.map(e => `[${e.t}] ${e.m}`).join('\n'));
-$('copyHistory').onclick = () => copyText(historyText());
 
 const cardActionsBusy = new Set();
 let contextMenuOpen = false;
@@ -1275,9 +1153,7 @@ $('recents').onclick = (e) => {
 
 $('overlay').onclick = (e) => { if (e.target === $('overlay')) closeSheet(); };
 document.addEventListener('keydown', (e) => {
-  if (e.key !== 'Escape') return;
-  if (!$('dlgOverlay').classList.contains('hidden')) closeDialog();
-  else closeSheet();
+  if (e.key === 'Escape') closeSheet();
 });
 // Most job events are progress markers read as codes. The few that are
 // advice for the person are shown in their language instead.

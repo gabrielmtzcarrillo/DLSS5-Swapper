@@ -318,40 +318,8 @@ app.whenReady().then(async () => {
   assert.match(await run(`window.lab.testCopiedText()`), /done - 1 replaced, 5 added/);
   assert.match(await run(`window.lab.testCopiedText()`), /FixtureGames/);
   assert.equal(await run(`getComputedStyle($('job')).userSelect`), 'text');
-  await run(`closeSheet(); applyLang('en'); show('history'); renderHistory()`);
-  assert.equal(await run(`document.querySelectorAll('.hist-row').length`), 2, 'install updates History without reopening the app');
-  await run(`$('copyHistory').onclick()`);
-  assert.match(await run(`window.lab.testCopiedText()`), /OptiScaler DLSS-NR/);
-  assert.match(await run(`window.lab.testCopiedText()`), /ReShade \/ RenoDX/);
-  assert.equal(await run(`getComputedStyle(document.querySelector('.hist-row .d')).userSelect`), 'text');
-  await run(`window.lab.testHistory([
-    { name: '<img src=x onerror=alert(1)> & Game', dir: 'D:\\\\Games\\\\<test>', exe: 'bin/Game.exe', route: 'feeder', api: 'd3d9', date: '2026-09-02T19:12:00.000Z', replaced: 1, added: 5, action: 'restore' },
-    { name: 'محاكي الألعاب', dir: 'D:\\\\Games\\\\Emulator', date: '2026-09-01T12:00:00.000Z', replaced: 0, added: 8, action: 'install', imported: true }
-  ]); renderHistory()`);
-  assert.equal(await run(`document.querySelectorAll('#history img').length`), 0);
-  assert.match(await run(`$('history').textContent`), /restored/);
-  assert.match(await run(`$('history').textContent`), /Backup record/);
-  await run(`$('copyHistory').onclick()`);
-  assert.match(await run(`window.lab.testCopiedText()`), /<img src=x onerror=alert\(1\)> & Game/);
-  assert.doesNotMatch(await run(`window.lab.testCopiedText()`), /&lt;/);
-  await run(`new Promise(resolve => setTimeout(resolve, 150))`);
-  fs.writeFileSync(path.join(output, 'history-en.png'), (await win.webContents.capturePage()).toPNG());
-  await run(`state.theme = 'dark'; $('themeBtn').click(); new Promise(resolve => setTimeout(resolve, 150))`);
-  assert.equal(await run(`document.documentElement.dataset.theme`), 'light');
-  fs.writeFileSync(path.join(output, 'history-light.png'), (await win.webContents.capturePage()).toPNG());
-  await run(`applyLang('ar'); renderHistory()`);
-  assert.equal(await run(`$('copyHistory').textContent`), 'نسخ الهستري');
-  await run(`$('copyHistory').onclick()`);
-  assert.equal(await run(`$('copyFeedback').textContent`), 'تم النسخ إلى الحافظة');
-  await run(`new Promise(resolve => setTimeout(resolve, 150))`);
-  fs.writeFileSync(path.join(output, 'history-ar.png'), (await win.webContents.capturePage()).toPNG());
-  await run(`window.lab.testHistoryFailure(true); renderHistory()`);
-  assert.equal(await run(`$('copyHistory').disabled`), true);
-  assert.equal(await run(`$('history').textContent`), await run(`t('historyLoadFailed')`));
-  await run(`window.lab.testHistoryFailure(false); window.lab.testHistory([]); renderHistory()`);
-  assert.equal(await run(`$('copyHistory').disabled`), true);
-  assert.equal(await run(`$('history').textContent`), await run(`t('histEmpty')`));
-  await run(`show('home'); $('clearLog').click()`);
+  await run(`closeSheet(); applyLang('en'); show('games')`);
+  await run(`$('clearLog').click()`);
   assert.equal(await run(`$('copyLog').disabled`), true);
   await run(`for(let index = 0; index < 55; index++) log('Log <entry> ' + index); $('copyLog').onclick()`);
   assert.equal(await run(`document.querySelectorAll('#log .log-row').length`), 40);
@@ -389,7 +357,7 @@ app.whenReady().then(async () => {
   assert.equal(await run(`state.games.find(g => g.dir === ${JSON.stringify(firstDir)}).poster.custom`), true);
   await menu(first, 'details');
   assert.equal(await run(`sheetGame.dir`), firstDir);
-  await run(`closeSheet(); show('home'); applyLang('ar')`);
+  await run(`closeSheet(); show('games'); applyLang('ar')`);
   await menu('#recents .rcard', 'copy');
   assert.equal(await run(`window.lab.testCopiedText()`), recentDir);
   assert.equal(await run(`window.lab.testMenuCalls().at(-1).options.labels.open`), 'فتح مجلد اللعبة');
@@ -421,7 +389,7 @@ app.whenReady().then(async () => {
   await run(`new Promise(resolve => setTimeout(resolve, 450))`);
   assert.equal(await run(`$('overlay').classList.contains('hidden')`), true, 'a completed job must not reopen a dismissed sheet');
   assert.deepEqual(errors, []);
-  console.log('PASS: filters and warnings in all 38 languages; library grouping, optional backends, History/copy, context actions, keyboard access, restore guards and light/dark/RTL layouts.');
+  console.log('PASS: filters and warnings in all 38 languages; library grouping, optional backends, activity log/copy, context actions, keyboard access, restore guards and light/dark/RTL layouts.');
   console.log(`Screenshots: ${output}`);
   clearTimeout(timeout);
   win.destroy();

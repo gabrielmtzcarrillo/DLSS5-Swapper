@@ -18,7 +18,9 @@ const feederReleases = require('./src/core/feeder-release.js');
 const FEEDER_VERSIONS = Array.isArray(feederReleases.VERSIONS) ? feederReleases.VERSIONS : [feederReleases];
 const pe = require('./src/core/pe.js');
 const { ensureLumenite, ensureDgVoodoo, missingVCRuntime, DGVOODOO_VERSIONS, dgVoodooRelease } = require('./src/core/runtime-components.js');
-const { V25: RENO_DX_V25, cachePath: renoDxV25CachePath, ensureRenoDxV25 } = require('./src/core/renodx-addon');
+const renodxAddon = require('./src/core/renodx-addon');
+const RENODX_VERSIONS = Array.isArray(renodxAddon.VERSIONS) ? renodxAddon.VERSIONS : [renodxAddon];
+const { cachePath: renodxCachePath, ensureRenodx } = renodxAddon;
 // A component that downloaded and verified, then vanished before it could be
 // used, is a security tool quarantining it - never the connection. Saying
 // "check your connection" there sends people after the wrong thing.
@@ -28,6 +30,7 @@ const renderingApi = require('./src/shared/rendering-api');
 const { projectUrl } = require('./src/core/project-links');
 const optiscaler = require('./src/core/optiscaler');
 const rtxmfg = require('./src/core/rtxmfg');
+const MFG_VERSIONS = Array.isArray(rtxmfg.VERSIONS) ? rtxmfg.VERSIONS : [rtxmfg];
 const backends = require('./src/core/backend-manager');
 const journal = require('./src/core/file-journal');
 const guards = require('./src/core/install-guards');
@@ -433,6 +436,8 @@ ipcMain.handle('settings', () => {
     dgVoodooVersion: dgVoodooRelease(state.dgVoodooVersion).version,
     feederVersions: FEEDER_VERSIONS.map(item => item.version),
     feederVersion: (feederReleases.release ? feederReleases.release(state.feederVersion) : FEEDER_VERSIONS[0]).version,
+    mfgVersions: MFG_VERSIONS.map(item => item.version),
+    mfgVersion: (rtxmfg.release ? rtxmfg.release() : MFG_VERSIONS[0]).version,
     excludedRoots: state.excludedRoots || [],
     hidden: [...(state.hidden || [])],
     autoScanDrives: state.autoScanDrives === true,
@@ -743,7 +748,7 @@ function companionAddons() {
 // not interchangeable with arbitrary ReShade add-ons, and loading both
 // versions at once can make the neural consumer race itself.
 function nativeAddonChoices() {
-  const wanted = new Set(['renodx-dlss5.addon64', 'renodx-dlss5-v2.5.addon64']);
+  const wanted = new Set(['renodx-dlss5.addon64', ...RENODX_VERSIONS.map((item) => item.file.toLowerCase())]);
   const found = [];
   const seen = new Set();
   const add = (file) => {
@@ -773,13 +778,13 @@ function nativeAddonChoices() {
     for (const file of files) add(path.join(box, file));
   }
   for (const entry of loadState().addonFiles || []) add(typeof entry === 'string' ? entry : entry.path);
-  const v25Path = renoDxV25CachePath(app.getPath('userData'));
-  if (!found.some((choice) => choice.file.toLowerCase() === RENO_DX_V25.file)) {
+  for (const item of RENODX_VERSIONS) {
+    if (found.some((choice) => choice.file.toLowerCase() === item.file.toLowerCase())) continue;
     found.push({
-      path: v25Path,
-      file: RENO_DX_V25.file,
-      version: '2.5',
-      label: 'v2.5',
+      path: renodxCachePath(app.getPath('userData'), item.version),
+      file: item.file,
+      version: item.version,
+      label: `v${item.version}`,
       downloadable: true
     });
   }
@@ -789,6 +794,42 @@ function nativeAddonChoices() {
 function selectedNativeAddon(file) {
   if (typeof file !== 'string' || !file) return null;
   return nativeAddonChoices().find((choice) => choice.path.toLowerCase() === path.resolve(file).toLowerCase())?.path || null;
+}
+
+// The DLSS/Streamline files themselves are never fetched by the app - unlike
+// RenoDX or dgVoodoo they are NVIDIA's own binaries with no public release
+// feed to pin. A person who already has an alternate build on disk (from a
+// different driver package, for example) can point at its folder here and
+// pick it per game, the same way a custom RenoDX add-on file is added.
+function dlssSourceChoices() {
+  const bundled = payload(true);
+  const bundledVersion = bundled?.source?.dlssVersion || null;
+  const found = [{
+    path: null,
+    label: bundledVersion ? `Bundled (v${bundledVersion})` : 'Bundled',
+    version: bundledVersion,
+    bundled: true
+  }];
+  for (const entry of loadState().dlssSources || []) {
+    const row = typeof entry === 'string' ? { path: entry } : entry;
+    const name = row.name || path.basename(row.path);
+    const probe = fs.existsSync(row.path) ? scanSource(row.path) : { ok: false };
+    const version = probe.ok ? probe.dlssVersion : null;
+    found.push({
+      path: row.path,
+      label: version ? `${name} (v${version})` : `${name} (unavailable)`,
+      version,
+      invalid: !version,
+      custom: true
+    });
+  }
+  return found;
+}
+
+function selectedDlssSource(dir) {
+  if (typeof dir !== 'string' || !dir) return null;
+  const choice = dlssSourceChoices().find((item) => item.path && path.resolve(item.path).toLowerCase() === path.resolve(dir).toLowerCase());
+  return choice && !choice.invalid ? choice.path : null;
 }
 
 // apply.js keeps its own copy of this private to the module, and the same
@@ -891,6 +932,34 @@ ipcMain.handle('addon-remove', async (_event, file) => {
   return true;
 });
 
+ipcMain.handle('dlss-sources', () => dlssSourceChoices());
+
+// A single dialog does the picking and the validating: there is nothing to
+// confirm afterwards, unlike an add-on build which also takes a name and notes.
+ipcMain.handle('dlss-source-add', async () => {
+  const res = await dialog.showOpenDialog(win, {
+    title: 'Add a DLSS / Streamline build',
+    properties: ['openDirectory']
+  });
+  if (res.canceled || !res.filePaths.length) return null;
+  const dir = res.filePaths[0];
+  const probe = scanSource(dir);
+  if (!probe.ok || !probe.dlssVersion) return { error: 'invalid' };
+  const state = loadState();
+  const list = (state.dlssSources || []).map((e) => (typeof e === 'string' ? { path: e } : e));
+  state.dlssSources = [...list.filter((e) => e.path !== dir), { path: dir, name: path.basename(dir) }];
+  await saveState(state);
+  return { ok: true };
+});
+
+ipcMain.handle('dlss-source-remove', async (_event, dir) => {
+  const state = loadState();
+  const list = (state.dlssSources || []).map((e) => (typeof e === 'string' ? { path: e } : e));
+  state.dlssSources = list.filter((e) => e.path !== dir);
+  await saveState(state);
+  return true;
+});
+
 ipcMain.handle('art-status', () => ({ available: art.available() }));
 
 // Bumped whenever the art picked for a game could change, so folders cached
@@ -985,6 +1054,7 @@ ipcMain.handle('details', async (_event, dir) => {
     via: scan.chosen ? scan.chosen.via : null,
     emulator: scan.emulator,
     nativeAddons: nativeAddonChoices(),
+    dlssSources: dlssSourceChoices().filter((item) => !item.invalid),
     installedRoute: scan.install && scan.install.route,
     installedFeederVersion: scan.install && scan.install.feederVersion,
     antiCheatWarning: compatibility.hasAntiCheat(dir, scan.chosen?.path),
@@ -1046,7 +1116,7 @@ async function exclusiveMutation(work) {
   finally { mutationBusy = false; }
 }
 
-ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, requestedAddon, requestedMultiFrameGeneration, requestedEffects, requestedDgVoodooVersion) => exclusiveMutation(async () => {
+ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, requestedAddon, requestedMultiFrameGeneration, requestedEffects, requestedDgVoodooVersion, requestedMfgVersion, requestedDlssSource) => exclusiveMutation(async () => {
   const p = payload();
   if (!p) return {
     ok: false,
@@ -1054,6 +1124,15 @@ ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, re
       ? 'The mod payload is missing or incomplete in this build. Reinstall a complete Swapper package; custom builds must run npm run payload before packaging.'
       : 'The mod payload is missing or incomplete. From the project root, run npm run payload -- "C:\\path\\to\\DLSS5-files" using the folder containing the DLSS 5 runtime and add-on, then retry.'
   };
+  const dlssSource = selectedDlssSource(requestedDlssSource);
+  if (requestedDlssSource && !dlssSource) return { ok: false, message: 'The selected DLSS build is not available.' };
+  if (dlssSource) {
+    const altProbe = scanSource(dlssSource);
+    p.source.dir = altProbe.dir;
+    p.source.payload = altProbe.payload;
+    p.source.dlssVersion = altProbe.dlssVersion;
+    p.source.hasNeuralRendering = altProbe.hasNeuralRendering;
+  }
   const scan = await scanGame(dir);
   if (!scan.chosen) return { ok: false, message: 'No game executable found' };
 
@@ -1078,8 +1157,11 @@ ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, re
   if (requestedAddon && route === 'native' && target.bitness === 64 && !selectedAddon) {
     return { ok: false, message: 'The selected RenoDX add-on is not available.' };
   }
-  if (selectedAddon && path.basename(selectedAddon).toLowerCase() === RENO_DX_V25.file) {
-    try { selectedAddon = await ensureRenoDxV25(app.getPath('userData')); }
+  const renodxMatch = selectedAddon
+    ? RENODX_VERSIONS.find((item) => item.file.toLowerCase() === path.basename(selectedAddon).toLowerCase())
+    : null;
+  if (renodxMatch) {
+    try { selectedAddon = await ensureRenodx(app.getPath('userData'), renodxMatch.version); }
     catch (err) { return { ok: false, code: componentCode(err, 'errAddonDownload'), message: err.message }; }
   }
   if (selectedAddon) p.source.addon = selectedAddon;
@@ -1133,7 +1215,7 @@ ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, re
     const managedMfgHook = (old?.added || []).some(rel => rel.replace(/\\/g, '/').toLowerCase() ===
       path.relative(dir, existingMfgHook).replace(/\\/g, '/').toLowerCase());
     if (fs.existsSync(existingMfgHook) && !managedMfgHook) return { ok: false, code: 'errMfgConflict' };
-    try { mfgRoot = await rtxmfg.ensureRTXMFG(app.getPath('userData')); }
+    try { mfgRoot = await rtxmfg.ensureRTXMFG(app.getPath('userData'), requestedMfgVersion); }
     catch (err) { return { ok: false, code: componentCode(err, 'errMfgDownload'), message: err.message }; }
   }
   if (route === 'optiscaler') {

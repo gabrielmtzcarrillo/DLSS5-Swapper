@@ -9,6 +9,7 @@ const crypto = require('crypto');
 const extractZip = require('extract-zip');
 const { execFileSync } = require('child_process');
 const feederReleases = require('../src/core/feeder-release');
+const renodxAddon = require('../src/core/renodx-addon');
 
 const ROOT = path.resolve(__dirname, '..');
 const PAYLOAD = path.join(ROOT, 'payload');
@@ -281,6 +282,17 @@ for (const dir of [path.resolve(ROOT, '..'), ...DEFAULT_SOURCES]) {
     }
   }
   if (extras) break;
+}
+
+// Every verified RenoDX release is bundled too, so picking it in the install
+// modal never depends on a download reaching GitHub. The runtime still fetches
+// it on demand for anyone running from source without this step.
+console.log('\nBundled RenoDX builds:');
+for (const release of renodxAddon.VERSIONS) {
+  const dest = path.join(EXTRAS, release.file);
+  if (fs.existsSync(dest)) continue;
+  const cached = await pinned([release.file, release.url, release.sha256]);
+  copyFile(cached, dest);
 }
 
 function sha256(file) {

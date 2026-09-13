@@ -14,21 +14,9 @@
       <div class="brand" id="brand"></div>
 
       <nav class="nav" id="nav">
-        <button class="nav-item active" data-view="home">
-          <svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/></svg>
-          <span data-i18n="navHome">Home</span><i class="dot"></i>
-        </button>
-        <button class="nav-item" data-view="games">
+        <button class="nav-item active" data-view="games">
           <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="11" rx="4"/><path d="M7 11v3m-1.5-1.5h3M16 12h.01M18.5 14h.01"/></svg>
           <span data-i18n="navGames">Games</span><i class="dot"></i>
-        </button>
-        <button class="nav-item" data-view="addons">
-          <svg viewBox="0 0 24 24"><path d="M10 4.5a1.9 1.9 0 1 1 3.8 0V6H17a1 1 0 0 1 1 1v3.2h1.5a1.9 1.9 0 1 1 0 3.8H18V17a1 1 0 0 1-1 1h-3.2v1.5a1.9 1.9 0 1 1-3.8 0V18H7a1 1 0 0 1-1-1v-3.2H4.5a1.9 1.9 0 1 1 0-3.8H6V7a1 1 0 0 1 1-1h3z"/></svg>
-          <span data-i18n="navAddons">Add-ons</span><i class="dot"></i>
-        </button>
-        <button class="nav-item" data-view="history">
-          <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5M12 7v5l3.5 2"/></svg>
-          <span data-i18n="navHistory">History</span><i class="dot"></i>
         </button>
         <button class="nav-item" data-view="settings">
           <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.5 14.5a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.6 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.4 1z"/></svg>
@@ -73,8 +61,8 @@
         </button>
       </div>
 
-      <!-- HOME -->
-      <section class="view active" id="view-home">
+      <!-- GAMES -->
+      <section class="view active" id="view-games">
         <div class="glass dropzone" id="dropZone">
           <div class="dz-circle">
             <svg viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
@@ -86,22 +74,9 @@
 
         <div class="section-head">
           <h3 data-i18n="recentTitle">Recent Games</h3>
-          <button class="link" data-view="games"><span data-i18n="viewAll">View All</span> <svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
         </div>
         <div class="recents" id="recents"></div>
 
-        <div class="section-head">
-          <h3 data-i18n="logTitle">Activity Log</h3>
-          <div class="row">
-            <button class="ghost sm" id="copyLog" data-i18n="copyLog" disabled>Copy log</button>
-            <button class="ghost sm" id="clearLog" data-i18n="clear">Clear</button>
-          </div>
-        </div>
-        <div class="glass log" id="log"></div>
-      </section>
-
-      <!-- GAMES -->
-      <section class="view" id="view-games">
         <div class="section-head games-heading">
           <h3><span id="gamesTitle" data-i18n="gamesTitle">Games</span> <span class="count" id="gamesCount" role="status" aria-live="polite"></span></h3>
           <div class="row">
@@ -121,25 +96,15 @@
         </div>
         <div class="game-quick-filters" id="gameQuickFilters"></div>
         <div id="groups"></div>
-      </section>
 
-      <!-- HISTORY -->
-      <section class="view" id="view-addons">
         <div class="section-head">
-          <h3 data-i18n="navAddons">Add-ons</h3>
-          <button class="ghost sm" id="addonAdd" data-i18n="setAdd">Add</button>
+          <h3 data-i18n="logTitle">Activity Log</h3>
+          <div class="row">
+            <button class="ghost sm" id="copyLog" data-i18n="copyLog" disabled>Copy log</button>
+            <button class="ghost sm" id="clearLog" data-i18n="clear">Clear</button>
+          </div>
         </div>
-        <p class="hint" id="addonHint" data-i18n="addonHint"></p>
-        <div id="addonList"></div>
-      </section>
-
-      <section class="view" id="view-history">
-        <div class="section-head">
-          <h3 data-i18n="navHistory">History</h3>
-          <button class="ghost sm" id="copyHistory" data-i18n="copyHistory" disabled>Copy history</button>
-        </div>
-        <p class="hint hidden" id="historyWarning" role="status"></p>
-        <div class="glass" id="history"></div>
+        <div class="glass log" id="log"></div>
       </section>
 
       <section class="view" id="view-settings">
@@ -174,24 +139,6 @@
   </div>
 
   <!-- game detail sheet -->
-  <div class="overlay hidden" id="dlgOverlay">
-    <div class="dialog">
-      <h3 data-i18n="addonAddTitle">Add an add-on</h3>
-      <div class="dlg-file" id="dlgFile"></div>
-      <label class="dlg-label" for="dlgName" data-i18n="addonName">Name</label>
-      <input class="dlg-input" id="dlgName" type="text" spellcheck="false">
-      <label class="dlg-label" for="dlgDesc" data-i18n="addonDesc">Description</label>
-      <textarea class="dlg-input" id="dlgDesc" rows="4" spellcheck="false"></textarea>
-      <div class="dlg-hint" data-i18n="addonDescHint"></div>
-      <label class="dlg-label" for="dlgTag" data-i18n="addonTag">Tag</label>
-      <input class="dlg-input" id="dlgTag" type="text" spellcheck="false">
-      <div class="dlg-actions">
-        <button class="ghost sm" id="dlgCancel" data-i18n="cancel">Cancel</button>
-        <button class="glass-btn sm" id="dlgSave" data-i18n="setAdd">Add</button>
-      </div>
-    </div>
-  </div>
-
   <div class="overlay hidden" id="overlay">
     <div class="sheet" id="sheet"></div>
   </div>
