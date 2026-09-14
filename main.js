@@ -441,7 +441,8 @@ ipcMain.handle('settings', () => {
     excludedRoots: state.excludedRoots || [],
     hidden: [...(state.hidden || [])],
     autoScanDrives: state.autoScanDrives === true,
-    groupGamesByStore: state.groupGamesByStore !== false
+    groupGamesByStore: state.groupGamesByStore !== false,
+    dlssSources: dlssSourceChoices().filter((item) => item.custom)
   };
 });
 

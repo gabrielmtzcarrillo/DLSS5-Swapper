@@ -318,6 +318,16 @@ async function renderSettings() {
           : `<div class="v">—</div>`}
       </div>
       <button class="ghost sm" id="setAddFolder">${t('setAdd')}</button></div>
+    <div class="set-row"><div><div class="k">${t('dlssSourcesTitle')}</div>
+        ${(info.dlssSources || []).length
+          ? `<div class="paths">${info.dlssSources.map((s) => `
+              <div class="path-row"><span>${esc(s.path)}${s.invalid ? ` ${esc(t('dlssSourceUnavailable'))}` : s.version ? ` (v${esc(s.version)})` : ''}</span>
+                <button class="drop" data-undlsssource="${esc(s.path)}" title="${t('addonRemove')}">
+                  <svg viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
+                </button></div>`).join('')}</div>`
+          : `<div class="v">${t('dlssSourcesHint')}</div>`}
+      </div>
+      <button class="ghost sm" id="setAddDlssSource">${t('setAdd')}</button></div>
     <div class="set-row"><div><div class="k">${t('setHidden')}</div>
         ${(info.hidden || []).length
           ? `<div class="paths">${info.hidden.map((f) => `
@@ -374,6 +384,24 @@ async function renderSettings() {
     await renderSettings();
   };
   $('setAddFolder').onclick = async () => { if (await window.lab.addFolder()) load(); };
+  $('setAddDlssSource').onclick = async () => {
+    const button = $('setAddDlssSource');
+    button.disabled = true;
+    try {
+      const result = await window.lab.dlssSourceAdd();
+      if (result && result.error === 'invalid') log(t('dlssSourceInvalid'));
+      else if (result) renderSettings();
+    } finally {
+      button.disabled = false;
+    }
+  };
+  for (const b of $('settings').querySelectorAll('[data-undlsssource]')) {
+    b.onclick = async () => {
+      b.disabled = true;
+      await window.lab.dlssSourceRemove(b.dataset.undlsssource);
+      renderSettings();
+    };
+  }
   for (const b of $('settings').querySelectorAll('[data-unroot]')) {
     b.onclick = async () => {
       b.disabled = true;
