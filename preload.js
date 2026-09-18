@@ -61,6 +61,7 @@ contextBridge.exposeInMainWorld('lab', {
   open: (dir) => ipcRenderer.invoke('open', dir),
   openProject: (destination) => ipcRenderer.invoke('open-project', destination),
   setApiOverride: (dir, exePath, value) => ipcRenderer.invoke('set-api-override', dir, exePath, value),
+  setDlssSource: (dir, value) => ipcRenderer.invoke('set-dlss-source', dir, value),
   artStatus: () => ipcRenderer.invoke('art-status'),
   artFetch: (dir, name, appid) => ipcRenderer.invoke('art-fetch', dir, name, appid),
   communityArt: (key, title) => ipcRenderer.invoke('community-art', key, title),

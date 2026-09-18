@@ -48,14 +48,15 @@ const catalog = {
     "errBackupInvalid": "The original backup is incomplete or invalid. No full restore was performed. Keep _DLSS5_Backup intact; check the missing file in the log and repair the game with its launcher if the original is lost. The app will not delete unknown game/mod files.",
     "nativeEffectsHint": "Native DLSS uses the Add-ons tab, not .fx effects. “No effects found” alone does not mean installation failed. Enable DLSS in the game and check the add-on status. Streamline and frame-generation files are preserved.",
     "backendHint": "Optional per-game backend. Changes apply only when you click Apply / Install with the game closed. Each backend keeps its own settings.",
-    "optiHint": "Optional OptiScaler DLSS-NR. Needs a 64-bit game with native DLSS enabled. The bundled neural model runs on Blackwell (RTX 50 series or RTX PRO Blackwell); an older card needs a modded nvngx_dlssnr.dll you supply. NVIDIA driver 616.56+ is recommended, not required. Anti-cheat games show a risk warning and require confirmation. Downloads ~130 MB on first use. Game compatibility is not guaranteed.",
+    "optiHint": "Optional OptiScaler DLSS-NR from DLSS Unlocked. Needs a 64-bit game with native DLSS enabled. The package includes the patched NR runtime plus Streamline and dlssg_sm86 for RTX 20/30 Multi Frame Generation; RTX 40 users can switch the Ada unlocker in OptiScaler.ini. Anti-cheat games show a risk warning and require confirmation. Downloads on first use. Game compatibility is not guaranteed.",
+    "optiMultipassHint": "Optional OptiScaler Pre-SR Multipass fork. Needs a 64-bit DX11/DX12/Vulkan game with native DLSS and a compatible nvngx_dlssnr.dll already available from your selected DLSS source or game folder. It can run Neural Rendering before Super Resolution and apply multiple model passes; start with one pass. Downloads on first use. Experimental and not guaranteed for every game.",
     "optiDriverOld": "NVIDIA driver older than 616.56. This app supplies the neural-rendering model file itself, so OptiScaler normally still runs on an older driver - which matters because 616.x is reported to break RenoDX, and people roll back deliberately. If the model does not initialise in game, update the driver.",
-    "optiCardOld": "Not a Blackwell card ({0}). The neural-rendering model that ships here is NVIDIA’s own, which runs on Blackwell; upstream says an older architecture needs a modded nvngx_dlssnr.dll, supplied by you and placed beside the game. An existing one is never overwritten. Install anyway and see - or use the ReShade or Feeder route instead.",
+    "optiCardOld": "Not a Blackwell card ({0}). DLSS Unlocked includes a patched NR runtime and the dlssg_sm86 MFG unlocker for RTX 20/30 cards, but compatibility still depends on the game, driver and Streamline path. Install anyway and test in game - or use the ReShade or Feeder route instead.",
     "optiBridgeHint": "DX11 / Vulkan: Neural Rendering uses the DX12 bridge with FSR output, not native DLSS output. The bridge is configured automatically; keep DLSS selected in the game to provide inputs.",
     "optiVulkanHint": "Vulkan backend changes require Restore originals first. A global ReShade Vulkan layer must not be active; other games’ layer registrations are never disabled automatically.",
     "optiUnsupported": "OptiScaler DLSS-NR is offered only for 64-bit DX11/DX12/Vulkan games, not DX8/DX9, OpenGL or emulators.",
     "optiNeedsDlss": "OptiScaler needs the game’s original DLSS pipeline. No original DLSS DLL was found; copied/injected DLLs alone do not qualify.",
-    "errOptiHardware": "This OptiScaler DLSS-NR build requires an RTX 50 series GPU and NVIDIA driver 616.56 or newer.",
+    "errOptiHardware": "Could not read NVIDIA GPU information. OptiScaler compatibility is not guaranteed.",
     "errOptiVulkanLayer": "A global ReShade Vulkan layer is active. Restore its managed Vulkan installs first; the app will not disable it for other games.",
     "errBackendVulkanSwitch": "For Vulkan, use Restore originals before installing the other backend. Settings are saved for the next installation.",
     "errOptiConflict": "Another loader/mod is present. Restore or remove that mod with its own installer first. No conflicting file was overwritten.",
@@ -402,6 +403,9 @@ for (const [code, values] of Object.entries(rendererStrings)) {
 for (const code of Object.keys(catalog)) {
   if (!Object.hasOwn(catalog[code], 'legacyDlssOptionsHint')) {
     catalog[code].legacyDlssOptionsHint = catalog.en.legacyDlssOptionsHint;
+  }
+  if (!Object.hasOwn(catalog[code], 'optiMultipassHint')) {
+    catalog[code].optiMultipassHint = catalog.en.optiMultipassHint;
   }
 }
 const aliases = {

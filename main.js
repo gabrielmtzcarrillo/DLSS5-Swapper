@@ -279,6 +279,12 @@ function apiPreference(state, dir, exe) {
   return renderingApi.valid(value) ? value : 'auto';
 }
 
+function dlssSourcePreference(state, dir) {
+  const saved = state.dlssSourceSelections?.[keyFor(dir)];
+  if (typeof saved !== 'string' || !saved) return '';
+  return selectedDlssSource(saved) ? saved : '';
+}
+
 // Renderer can only load what it is handed a URL for.
 function posterUrl(game, state) {
   const key = keyFor(game.dir);
@@ -1061,6 +1067,7 @@ ipcMain.handle('details', async (_event, dir) => {
     emulator: scan.emulator,
     nativeAddons: nativeAddonChoices(),
     dlssSources: dlssSourceChoices().filter((item) => !item.invalid),
+    selectedDlssSource: dlssSourcePreference(state, dir),
     installedRoute: scan.install && scan.install.route,
     installedFeederVersion: scan.install && scan.install.feederVersion,
     antiCheatWarning: compatibility.hasAntiCheat(dir, scan.chosen?.path),
@@ -1114,6 +1121,23 @@ ipcMain.handle('set-api-override', async (_event, dir, exePath, value) => {
   else state.apiOverrides[key] = value;
   return await saveState(state) ? { ok: true } : { ok: false, code: 'errApiSave' };
 });
+
+ipcMain.handle('set-dlss-source', async (_event, dir, value) => {
+  if (mutationBusy) return { ok: false, code: 'errJobBusy' };
+  if (typeof dir !== 'string' || !path.isAbsolute(dir)) return { ok: false, code: 'errDlssSourceChoice' };
+  const state = loadState();
+  state.dlssSourceSelections = state.dlssSourceSelections && typeof state.dlssSourceSelections === 'object' && !Array.isArray(state.dlssSourceSelections)
+    ? state.dlssSourceSelections : {};
+  const key = keyFor(dir);
+  if (!value) delete state.dlssSourceSelections[key];
+  else {
+    const selected = selectedDlssSource(value);
+    if (!selected) return { ok: false, code: 'errDlssSourceChoice' };
+    state.dlssSourceSelections[key] = selected;
+  }
+  return await saveState(state) ? { ok: true } : { ok: false, code: 'errDlssSourceSave' };
+});
+
 async function exclusiveMutation(work) {
   if (mutationBusy) return { ok: false, code: 'errJobBusy' };
   mutationBusy = true;
@@ -1130,8 +1154,16 @@ ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, re
       ? 'The mod payload is missing or incomplete in this build. Reinstall a complete Swapper package; custom builds must run npm run payload before packaging.'
       : 'The mod payload is missing or incomplete. From the project root, run npm run payload -- "C:\\path\\to\\DLSS5-files" using the folder containing the DLSS 5 runtime and add-on, then retry.'
   };
-  const dlssSource = selectedDlssSource(requestedDlssSource);
-  if (requestedDlssSource && !dlssSource) return { ok: false, message: 'The selected DLSS build is not available.' };
+  const requestedSourceValue = requestedDlssSource == null ? dlssSourcePreference(loadState(), dir) : requestedDlssSource;
+  const dlssSource = selectedDlssSource(requestedSourceValue);
+  if (requestedSourceValue && !dlssSource) return { ok: false, message: 'The selected DLSS build is not available.' };
+  if (dlssSource) {
+    const state = loadState();
+    state.dlssSourceSelections = state.dlssSourceSelections && typeof state.dlssSourceSelections === 'object' && !Array.isArray(state.dlssSourceSelections)
+      ? state.dlssSourceSelections : {};
+    state.dlssSourceSelections[keyFor(dir)] = dlssSource;
+    await saveState(state);
+  }
   if (dlssSource) {
     const altProbe = scanSource(dlssSource);
     p.source.dir = altProbe.dir;
@@ -1152,7 +1184,8 @@ ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, re
   target.hasNativeDlss = installRoutes.nativeDlssPresent(scan);
   const api = target.api;
   const availableRoutes = installRoutes.routesFor(target, api);
-  if (requestedRoute === 'optiscaler' && !availableRoutes.includes('optiscaler')) {
+  const requestedOptiRoute = requestedRoute === 'optiscaler' || requestedRoute === 'optiscaler-multipass';
+  if (requestedOptiRoute && !availableRoutes.includes(requestedRoute)) {
     return { ok: false, code: installRoutes.optiReason(target, api) || 'optiUnsupported' };
   }
   if (!availableRoutes.length) return { ok: false, code: 'unsupportedRendererHint', message: 'This rendering API is not supported. Select the game’s DirectX 11 mode where available.' };
@@ -1224,7 +1257,7 @@ ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, re
     try { mfgRoot = await rtxmfg.ensureRTXMFG(app.getPath('userData'), requestedMfgVersion); }
     catch (err) { return { ok: false, code: componentCode(err, 'errMfgDownload'), message: err.message }; }
   }
-  if (route === 'optiscaler') {
+  if (route === 'optiscaler' || route === 'optiscaler-multipass') {
     optiscaler.checkConflicts(dir, target.path, old, api);
     if (api === 'vulkan' && await vulkanLayer.existing(vulkanLayer.defaultRunner)) return { ok: false, code: 'errOptiVulkanLayer' };
     const gpu = await guards.gpuInfo();
@@ -1235,21 +1268,26 @@ ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, re
     const oldCard = gpu ? !guards.gpuModelSupported(gpu) : false;
     const oldDriver = gpu ? !guards.driverSupported(gpu) : false;
     const confirmation = await dialog.showMessageBox(win, {
-      type: 'warning', title: 'OptiScaler DLSS-NR',
+      type: 'warning', title: route === 'optiscaler-multipass' ? 'OptiScaler Pre-SR Multipass' : 'OptiScaler DLSS-NR',
       message: featureText('optiConfirm'),
       detail: [gpu ? gpu.map(g => `${g.name} — ${g.driver}`).join('\n') : featureText('errOptiHardware'),
         oldCard ? featureText('optiCardOld') : null,
         oldDriver ? featureText('optiDriverOld') : null,
-        featureText('optiHint'), featureText('optiBridgeHint'), featureText('backendHint')].filter(Boolean).join('\n\n'),
+        featureText(route === 'optiscaler-multipass' ? 'optiMultipassHint' : 'optiHint'),
+        featureText('optiBridgeHint'), featureText('backendHint')].filter(Boolean).join('\n\n'),
       buttons: [featureText('installOpti'), featureText('cancel')], defaultId: 1, cancelId: 1
     });
     if (confirmation.response !== 0) return { ok: false, cancelled: true };
     const missing = missingVCRuntime(64, path.dirname(target.path), process.env.SystemRoot, ['msvcp140_atomic_wait.dll']);
     if (missing.length) return { ok: false, code: 'runtimeRequiredHint', message: missing.join(', ') };
     send({ code: 'optiDownloading', params: {} });
-    try { optiRoot = await optiscaler.ensureOptiScaler(app.getPath('userData')); }
+    try {
+      optiRoot = route === 'optiscaler-multipass'
+        ? await optiscaler.ensureMultipass(app.getPath('userData'))
+        : await optiscaler.ensureOptiScaler(app.getPath('userData'));
+    }
     catch (err) { return { ok: false, code: componentCode(err, 'errOptiDownload'), message: err.message }; }
-    send({ code: 'optiVerified', params: { version: optiscaler.RELEASE.version } });
+    send({ code: 'optiVerified', params: { version: (route === 'optiscaler-multipass' ? optiscaler.MULTIPASS_RELEASE : optiscaler.RELEASE).version } });
   }
 
   // Check before restoring or touching the game: these DLLs are imported by

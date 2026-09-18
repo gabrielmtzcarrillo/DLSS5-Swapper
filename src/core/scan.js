@@ -578,15 +578,18 @@ async function scanGame(gameDir) {
         exe: data.game && data.game.exe,
         previousReShadeRoute: data.previousReShadeRoute || null,
         feederVersion: data.route === 'feeder' && data.feeder ? data.feeder.version || null : null,
-        optiscaler: data.route === 'optiscaler' ? data.optiscaler : null,
+        optiscaler: (data.route === 'optiscaler' || data.route === 'optiscaler-multipass') ? data.optiscaler : null,
         added: Array.isArray(data.added) ? data.added.filter(item => typeof item === 'string') : [],
         vulkanLayer: data.vulkanLayer || null
       };
       if (install.optiscaler) {
         const exeDir = path.dirname(safePath(gameDir, data.game.exe));
         const hook = safePath(gameDir, path.relative(gameDir, path.join(exeDir, install.optiscaler.hook)));
+        const required = data.route === 'optiscaler-multipass'
+          ? ['nvngx_dlssnr.dll', 'OptiScaler.ini']
+          : ['nvngx.dll_dlssnr.dll', 'nvngx_dlssnr.dll', 'OptiScaler.ini'];
         install.optiscaler.installed = pe.versionMentions(hook, 'OptiScaler') &&
-          ['nvngx.dll_dlssnr.dll', 'nvngx_dlssnr.dll', 'OptiScaler.ini'].every(name => fs.existsSync(path.join(exeDir, name)));
+          required.every(name => fs.existsSync(path.join(exeDir, name)));
       }
     } catch {}
   }

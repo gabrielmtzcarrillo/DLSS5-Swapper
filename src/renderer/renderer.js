@@ -599,7 +599,7 @@ function selectedRoute(d, pick, dir) {
 function installLabel(d, pick, dir) {
   const route = pick && selectedRoute(d, pick, dir);
   if (d.installedRoute && route !== d.installedRoute) return t('applyBackend');
-  return route === 'optiscaler' ? t('installOpti') : t('install');
+  return route === 'optiscaler' || route === 'optiscaler-multipass' ? t('installOpti') : t('install');
 }
 
 function installOptions(d, pick, dir) {
@@ -609,12 +609,13 @@ function installOptions(d, pick, dir) {
   const api = selectedApi(pick, dir);
   const route = selectedRoute(d, pick, dir, api.api);
   const routes = routesFor(pick);
-  const opti = route === 'optiscaler';
+  const opti = route === 'optiscaler' || route === 'optiscaler-multipass';
+  const multipassOpti = route === 'optiscaler-multipass';
   const optiReason = window.installRoutes.optiReason(window.renderingApi.effective(pick, pick.apiOverride || 'auto'));
   const legacy = ['d3d8', 'd3d9'].includes(api.api);
   const selectedDgVoodoo = dgVoodooVersionChoice.get(dir) || d.dgVoodooVersion;
   const selectedMfg = mfgVersionChoice.get(dir) || d.mfgVersion;
-  const selectedDlssSource = dlssSourceChoice.get(dir) || '';
+  const selectedDlssSource = dlssSourceChoice.has(dir) ? dlssSourceChoice.get(dir) : (d.selectedDlssSource || '');
   const componentVersions = [];
   if (legacy) componentVersions.push(`dgVoodoo2 v${selectedDgVoodoo}`);
   if (!opti && route === 'feeder') {
@@ -634,9 +635,10 @@ function installOptions(d, pick, dir) {
       ${apiField}
       <label><span>${t('fBackend')}</span><select id="backendChoice" aria-describedby="backendHint">
         <option value="reshade"${opti ? '' : ' selected'}>${t('backendReShade')}</option>
-        <option value="optiscaler"${opti ? ' selected' : ''}${optiReason ? ' disabled' : ''}>OptiScaler DLSS-NR</option>
+        <option value="optiscaler"${route === 'optiscaler' ? ' selected' : ''}${optiReason ? ' disabled' : ''}>OptiScaler DLSS-NR</option>
+        <option value="optiscaler-multipass"${multipassOpti ? ' selected' : ''}${optiReason ? ' disabled' : ''}>OptiScaler Pre-SR Multipass</option>
       </select></label>
-      ${!opti ? `<label><span>${t('fRoute')}</span><select id="routeChoice">${routes.filter(item => item !== 'optiscaler').map((item) =>
+      ${!opti ? `<label><span>${t('fRoute')}</span><select id="routeChoice">${routes.filter(item => item !== 'optiscaler' && item !== 'optiscaler-multipass').map((item) =>
         `<option value="${item}"${item === route ? ' selected' : ''}>${item === 'renodx' ? 'RenoDX DLSS Tool (multipass)' : t(item === 'feeder' ? 'routeFeeder' : 'routeNative')}</option>`).join('')}</select></label>
       ` : ''}
       ${!opti && legacy ? `<label><span>${t('setDgVoodooVersion')}</span><select id="installDgVoodooVersion" aria-describedby="installDgVoodooHint">
@@ -658,7 +660,7 @@ function installOptions(d, pick, dir) {
       </select></label>` : ''}
     </div>
     ${apiHint}
-    <div class="emu-note backend-note" id="backendHint"><span>${t(opti ? 'optiHint' : 'backendHint')}</span>
+    <div class="emu-note backend-note" id="backendHint"><span>${t(opti ? (multipassOpti ? 'optiMultipassHint' : 'optiHint') : 'backendHint')}</span>
       ${optiReason ? `<span>${t(optiReason)}</span>` : ''}
       ${route === 'native' ? `<span>${t('nativeEffectsHint')}</span>` : ''}
       ${opti && (api.api === 'vulkan' || api.label === 'DirectX 11') ? `<span>${t('optiBridgeHint')}</span>` : ''}
@@ -725,6 +727,7 @@ async function openSheet(dir, keepLog = false) {
     if (installed) exeChoice.set(dir, installed.path);
   }
   if (!routeChoice.has(dir) && d.installedRoute) routeChoice.set(dir, d.installedRoute);
+  if (!dlssSourceChoice.has(dir)) dlssSourceChoice.set(dir, d.selectedDlssSource || '');
 
   const info = art && !art.error && !art.none ? art : null;
   const cover = (info && info.cover) || (g.poster && g.poster.tall ? g.poster.url : null);
@@ -761,7 +764,7 @@ async function openSheet(dir, keepLog = false) {
         ${showExeFact && pick ? spec(t('fExe'), esc(pick.rel.split(/[\/]/).pop()), null, pick.rel) : ''}
         ${pick ? spec(t('fArchitecture'), `${pick.bitness || '?'}-bit`) : ''}
         ${spec(t('fApi'), esc((pick && selectedApi(pick, dir).label) || reasonText(d.reason) || '—'), pick && selectedApi(pick, dir).api === 'dxgi' ? 'on' : 'off')}
-        ${spec(t('installedBackend'), esc(d.installedRoute === 'optiscaler' ? 'OptiScaler DLSS-NR' : d.installedRoute === 'renodx' ? 'RenoDX DLSS Tool' : d.installedRoute ? 'ReShade' : t('none')), d.installedRoute ? 'on' : 'off')}
+        ${spec(t('installedBackend'), esc(d.installedRoute === 'optiscaler-multipass' ? 'OptiScaler Pre-SR Multipass' : d.installedRoute === 'optiscaler' ? 'OptiScaler DLSS-NR' : d.installedRoute === 'renodx' ? 'RenoDX DLSS Tool' : d.installedRoute ? 'ReShade' : t('none')), d.installedRoute ? 'on' : 'off')}
         ${d.installedFeederVersion ? spec(t('installedFeederVersion'), `v${esc(d.installedFeederVersion)}`, 'on') : ''}
         ${spec('DLSS', pick && selectedRoute(d, pick, dir) === 'optiscaler' ? esc(inGameDlss || t('none')) : dlssValue(inGameDlss, d.newDlss, upToDate))}
         ${d.optiscaler ? spec('OptiScaler', esc(d.optiscaler.installed ? d.optiscaler.version : t('notInstalled')), d.optiscaler.installed ? 'on' : 'off') : ''}
@@ -826,12 +829,26 @@ async function openSheet(dir, keepLog = false) {
     nativeAddonSelect.onchange = () => nativeAddonChoice.set(dir, nativeAddonSelect.value);
   }
   const dlssSourceSelect = $('installDlssSource');
-  if (dlssSourceSelect) dlssSourceSelect.onchange = () => dlssSourceChoice.set(dir, dlssSourceSelect.value);
+  if (dlssSourceSelect) dlssSourceSelect.onchange = async () => {
+    const value = dlssSourceSelect.value;
+    const previous = dlssSourceChoice.get(dir) || d.selectedDlssSource || '';
+    dlssSourceChoice.set(dir, value);
+    dlssSourceSelect.disabled = true;
+    let result;
+    try { result = await window.lab.setDlssSource(dir, value); }
+    catch { result = { ok: false, code: 'errDlssSourceSave' }; }
+    if (!result?.ok) {
+      dlssSourceChoice.set(dir, previous);
+      dlssSourceSelect.value = previous;
+      jobLog(t(result?.code || 'errDlssSourceSave'));
+    }
+    dlssSourceSelect.disabled = false;
+  };
   const backendSelect = $('backendChoice');
   if (backendSelect) backendSelect.onchange = () => {
-    const available = routesFor(pick).filter(route => route !== 'optiscaler');
+    const available = routesFor(pick).filter(route => route !== 'optiscaler' && route !== 'optiscaler-multipass');
     const previous = available.includes(d.previousReShadeRoute) ? d.previousReShadeRoute : d.recommendedRoute;
-    routeChoice.set(dir, backendSelect.value === 'optiscaler' ? 'optiscaler' : available.includes(previous) ? previous : available[0]);
+    routeChoice.set(dir, backendSelect.value === 'reshade' ? (available.includes(previous) ? previous : available[0]) : backendSelect.value);
     openSheet(dir, true);
   };
   const multiFrameGeneration = $('multiFrameGeneration');

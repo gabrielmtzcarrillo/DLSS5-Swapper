@@ -20,9 +20,31 @@ const CURRENT = {
   }
 };
 
+// Upstream's 1.16 betas are published as full releases, not prereleases, and
+// carry the command-list failure handling from issue #104 (a list that will
+// not close now stops the feed instead of running on stale output). Offered
+// as a choice rather than the default until it is confirmed across games.
+const BETA_1_16 = {
+  version: '1.16.0-beta.4',
+  archive: ['DLSS5-Feeder-1.16.0-beta.4.zip', 'https://github.com/jlrouzies-fr/DLSS5-Feeder/releases/download/v1.16.0-beta.4/DLSS5-Feeder-1.16.0-beta.4.zip', 'd16f8b527f76ff1f531682a576d699cb5634838c0e2899585e3671814eda2745'],
+  addon64Size: 308224,
+  hashes: {
+    'dlss5-feed.addon32': '0e1604137027c00884222d811f7f03ac0bb0120c89ced4368f4453f6cc70ba2d',
+    'dlss5-feed.addon64': '875b6baa286412ee6166965b9fd9097e059515f6e2eb8464aae2c7ead27f213d',
+    'dlss5-feed-host64.exe': 'ad60a068a5c3cbf1ba87cc7af3191a93d0b3312486ed26d6b3b5881c828f23fa',
+    'reshade-shaders/Shaders/DLSS5_Feed.fx': 'cdac08a721b14b97187dd86c5b5bead157c9063d7ee859a0f131a8ee791695f1',
+    'layer-x64/VkLayer_feed_vk.dll': '0bf8b78f8276359be1ff6ccb97f75e394d766aa93c5e49f663aed1fe90b246f3',
+    'layer-x64/VkLayer_feed_vk.json': 'c15967b3f8847a145e21058a1e57e92c595ee17fc5dd23ab3278b0148ad6e9d1',
+    'layer-x64/run-with-feed-layer.bat': 'bc9aa7964742e23653556be978f540f503f3cef928b6de7a38f77c570bb764f9',
+    'layer-x86/VkLayer_feed_vk32.dll': '62a00e8b4a4e01ad9dce3a2d898d911dc88fdbc9e36bf4397bd7103b83241683',
+    'layer-x86/VkLayer_feed_vk32.json': '28f8174eb8fed02266bafa6910eab07922ec6d2bdb33110699c586f74b254921',
+    'layer-x86/run-with-feed-layer32.bat': '75d4584ad01619402a10e0d8342b114613057a1d3b0ac8dbe9280b740090c3e8'
+  }
+};
+
 // Keep the previous verified releases selectable for existing payloads.
 module.exports = CURRENT;
-module.exports.VERSIONS = [CURRENT,
+module.exports.VERSIONS = [CURRENT, BETA_1_16,
   { version: '0.12.0', archive: ['DLSS5-Feeder-0.12.0.zip', 'https://github.com/jlrouzies-fr/DLSS5-Feeder/releases/download/v0.12.0/DLSS5-Feeder-0.12.0.zip', 'e970537996f6e73dce9a510b9e015fad19f148ee736dc4f518ccdebf6f012558'], hashes: {
     'dlss5-feed.addon32': 'd2df9fbf9b5e0cc24291b9240e4f8dd2aae063592571bbed37302878b6dac74c', 'dlss5-feed.addon64': '066eec8c797df2d656f2ab2324278921b1dd6e9116c9945294f4a00f7fec608a', 'dlss5-feed-host64.exe': '397dbf49c3a2b5f3bc13cfa0e0b3df4316edae9c45be7379bcacad066ebb07f2', 'reshade-shaders/Shaders/DLSS5_Feed.fx': '955d911d3b567c57f4e0b44e528dae3f3df286fd8fd3e775b9f6b5ddd561aa94'
   } },

@@ -8,16 +8,21 @@ const opti = require('../src/core/optiscaler');
 const routes = require('../src/shared/install-routes');
 const guards = require('../src/core/install-guards');
 const ini = require('../src/core/feeder-config');
+const { writePe } = require('./fixtures/pe');
 
 test('OptiScaler is optional, gated by real DLSS, architecture and API', () => {
   const target = { bitness: 64, api: 'dxgi', apiLabel: 'DirectX 12', hasNativeDlss: true };
-  assert.deepEqual(routes.routesFor(target), ['native', 'feeder', 'optiscaler', 'renodx']);
+  assert.deepEqual(routes.routesFor(target), ['native', 'feeder', 'optiscaler', 'optiscaler-multipass']);
+  assert.deepEqual(routes.routesFor({ ...target, multipassAvailable: true }), ['native', 'feeder', 'optiscaler', 'optiscaler-multipass', 'renodx']);
   assert.equal(routes.recommendedRoute({ chosen: target, primaryDlss: { rel: 'nvngx_dlss.dll' } }), 'native');
   for (const delta of [{ bitness: 32 }, { hasNativeDlss: false }, { emulator: { key: 'xenia' } }, { api: 'd3d9' }, { api: 'd3d8' }, { api: 'opengl' }, { apiLabel: 'DirectX 10' }]) {
     assert.equal(routes.routesFor({ ...target, ...delta }).includes('optiscaler'), false);
+    assert.equal(routes.routesFor({ ...target, ...delta }).includes('optiscaler-multipass'), false);
   }
   assert.equal(routes.routesFor({ ...target, apiLabel: 'DirectX 11' }).includes('optiscaler'), true);
+  assert.equal(routes.routesFor({ ...target, apiLabel: 'DirectX 11' }).includes('optiscaler-multipass'), true);
   assert.equal(routes.routesFor({ ...target, api: 'vulkan' }).includes('optiscaler'), true);
+  assert.equal(routes.routesFor({ ...target, api: 'vulkan' }).includes('optiscaler-multipass'), true);
   assert.equal(routes.nativeDlssPresent({ primaryDlss: { rel: 'nvngx_dlss.dll' }, install: { added: ['NVNGX_DLSS.DLL'] } }), false);
 });
 
@@ -29,11 +34,73 @@ test('OptiScaler configuration arms NR but preserves unrelated preferences', () 
   assert.equal(ini.getIni(configured, 'DlssNr', 'Intensity'), '0.65');
   assert.equal(ini.getIni(configured, 'Upscalers', 'Dx11Upscaler'), 'ffx_12');
   assert.equal(ini.getIni(configured, 'FrameGen', 'Enabled'), 'false');
+  assert.equal(ini.getIni(configured, 'FrameGen', 'External'), 'true');
+  assert.equal(ini.getIni(configured, 'DLSSG', 'AmpereMfgUnlock'), 'true');
   assert.equal(ini.getIni(configured, 'Other', 'Setting'), 'keep');
   assert.equal(ini.getIni(configured, 'Plugins', 'LoadAsiPlugins'), 'false');
   assert.equal(opti.configure(configured, target), configured);
   assert.equal(ini.getIni(opti.configure('', { ...target, api: 'vulkan' }), 'Upscalers', 'VulkanUpscaler'), 'ffx_12');
   assert.equal(ini.getIni(opti.configure('', { ...target, apiLabel: 'DirectX 12' }), 'Upscalers', 'Dx12Upscaler'), 'dlss');
+});
+
+test('OptiScaler package validation and copy plan include DLSS Unlocked MFG files', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opti-payload-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  for (const rel of [
+    'dxgi.dll', 'nvngx.dll_dlssnr.dll', 'nvngx_dlssnr.dll',
+    'OptiScaler/libxess.dll', 'OptiScaler/libxess_dx11.dll', 'OptiScaler/libxess_fg.dll',
+    'OptiScaler/libxell.dll', 'OptiScaler/amd_fidelityfx_vk.dll',
+    'OptiScaler/amd_fidelityfx_upscaler_dx12.dll', 'OptiScaler/amd_fidelityfx_loader_dx12.dll',
+    'OptiScaler/amd_fidelityfx_framegeneration_dx12.dll', 'OptiScaler/D3D12Core.dll',
+    'OptiScaler/dlss-enabler-headless.dll', 'OptiScaler/dlssg_to_fsr3_amd_is_better.dll',
+    'OptiScaler/streamline/sl.interposer.dll', 'OptiScaler/streamline/sl.common.dll',
+    'OptiScaler/streamline/sl.dlss.dll', 'OptiScaler/streamline/sl.dlss_g.dll',
+    'OptiScaler/streamline/sl.deepdvc.dll', 'OptiScaler/streamline/sl.dlss_nr.dll',
+    'OptiScaler/dlssg_sm86/dlssg_sm86.dll'
+  ]) writePe(path.join(root, rel));
+  for (const rel of [
+    'OptiScaler.ini', 'OptiScaler/dlssg_sm86/dlssg_sm86.ini',
+    'OptiScaler/dlssg_sm86/THIRD_PARTY_NOTICES.txt',
+    'Licenses/DISCLAIMER.txt', 'Licenses/NVIDIA_Streamline_LICENSE.txt',
+    'Licenses/DLSSG_to_FSR3_LICENSE.txt', 'Licenses/dlssg_sm86_THIRD_PARTY_NOTICES.txt'
+  ]) {
+    fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+    fs.writeFileSync(path.join(root, rel), rel);
+  }
+
+  assert.doesNotThrow(() => opti.validatePayload(root));
+  const plan = opti.copyPlan(root, 'dxgi').map(item => item.to.replace(/\\/g, '/'));
+  assert.ok(plan.includes('OptiScaler/dlssg_sm86/dlssg_sm86.dll'));
+  assert.ok(plan.includes('OptiScaler/dlssg_sm86/dlssg_sm86.ini'));
+  assert.ok(plan.includes('OptiScaler/streamline/sl.interposer.dll'));
+});
+
+test('OptiScaler Pre-SR Multipass package validation uses its portable layout', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opti-multipass-payload-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  for (const rel of [
+    'OptiScaler.dll',
+    'OptiScaler/libxess.dll', 'OptiScaler/libxess_dx11.dll', 'OptiScaler/libxess_fg.dll',
+    'OptiScaler/libxell.dll', 'OptiScaler/amd_fidelityfx_vk.dll',
+    'OptiScaler/amd_fidelityfx_upscaler_dx12.dll', 'OptiScaler/amd_fidelityfx_loader_dx12.dll',
+    'OptiScaler/amd_fidelityfx_framegeneration_dx12.dll',
+    'OptiScaler/D3D12_OptiScaler/D3D12Core.dll'
+  ]) writePe(path.join(root, rel));
+  for (const rel of ['OptiScaler.ini', 'setup_windows.bat', 'SHA256SUMS.txt', 'LICENSE']) {
+    fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+    fs.writeFileSync(path.join(root, rel), rel);
+  }
+
+  assert.doesNotThrow(() => opti.validatePayload(root, 'optiscaler-multipass'));
+  const configured = opti.configure('[DlssNr]\nEnabled=false\nPasses=3\n', {
+    exePath: 'C:\\Games\\Game.exe', api: 'dxgi', apiLabel: 'DirectX 12', route: 'optiscaler-multipass'
+  });
+  assert.equal(ini.getIni(configured, 'DlssNr', 'Enabled'), 'true');
+  assert.equal(ini.getIni(configured, 'DlssNr', 'RunBeforeSR'), 'true');
+  assert.equal(ini.getIni(configured, 'DlssNr', 'Passes'), '3');
+  const plan = opti.copyPlan(root, 'dxgi', 'optiscaler-multipass').map(item => item.to.replace(/\\/g, '/'));
+  assert.ok(plan.includes('dxgi.dll'));
+  assert.ok(plan.includes('OptiScaler/D3D12_OptiScaler/D3D12Core.dll'));
 });
 
 test('GPU requirements and process guards reject known unsupported/running targets', async () => {

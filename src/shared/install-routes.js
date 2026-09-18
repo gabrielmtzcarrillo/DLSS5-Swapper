@@ -21,11 +21,11 @@
     // DX10 is supported by Feeder's private D3D11 relay. It uses the same
     // ReShade/DXGI deployment as DX11, but never qualifies for OptiScaler.
     if (api === 'd3d10') return target.bitness === 32 ? ['feeder'] : [];
-    if (['d3d9', 'opengl', 'vulkan'].includes(api)) return !optiReason(target, api) ? ['feeder', 'optiscaler'] : ['feeder'];
+    if (['d3d9', 'opengl', 'vulkan'].includes(api)) return !optiReason(target, api) ? ['feeder', 'optiscaler', 'optiscaler-multipass'] : ['feeder'];
     if (api !== 'dxgi') return [];
     if (target.apiLabel === 'DirectX 10') return target.bitness === 32 ? ['feeder'] : [];
     const routes = target.bitness === 32 || target.emulator || target.apiLabel !== 'DirectX 12' ? ['feeder'] : ['native', 'feeder'];
-    if (!optiReason(target, api)) routes.push('optiscaler');
+    if (!optiReason(target, api)) routes.push('optiscaler', 'optiscaler-multipass');
     if (target.bitness === 64 && !target.emulator && target.multipassAvailable === true) routes.push('renodx');
     return routes;
   }
