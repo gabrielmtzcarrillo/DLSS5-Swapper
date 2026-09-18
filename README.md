@@ -278,6 +278,11 @@ fiddling, you can buy me a coffee.
 
 Parts of the emulator profile table and Vulkan/Feeder installation model were
 adapted from [DLSS5-Autopilot](https://github.com/Kizzuwatnaa/DLSS5-Autopilot).
+The OptiScaler DLSS-NR route uses the pinned
+[DLSS Unlocked](https://github.com/ShyVortex/dlss-unlocked) OptiScaler package.
+The optional Pre-SR Multipass OptiScaler route uses
+[OptiScaler-DLSSNR-PreSR-Multipass](https://github.com/wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass)
+by wilsjo2.
 Optional RTX 40 Multi Frame Generation support uses
 [Universal RTXMFG](https://github.com/dashdogy/RTX40MFG-Unlock), downloaded on
 demand and checksum-verified for native 64-bit games with existing DLSS Frame

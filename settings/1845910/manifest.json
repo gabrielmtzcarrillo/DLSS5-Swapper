@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "backupPrefix": "originals/3a949694-b09d-4af7-8a66-891d7c80f885",
+  "date": "2026-09-18T04:57:58.788Z",
+  "game": {
+    "dir": "c:\\program files (x86)\\steam\\steamapps\\common\\Dragon Age The Veilguard",
+    "exe": "Dragon Age The Veilguard.exe",
+    "api": "dxgi",
+    "bitness": 64,
+    "apiLabel": "DirectX 12"
+  },
+  "replaced": [],
+  "added": [
+    "dxgi.dll",
+    "OptiScaler\\amd_fidelityfx_framegeneration_dx12.dll",
+    "OptiScaler\\amd_fidelityfx_loader_dx12.dll",
+    "OptiScaler\\amd_fidelityfx_upscaler_dx12.dll",
+    "OptiScaler\\amd_fidelityfx_vk.dll",
+    "OptiScaler\\libxell.dll",
+    "OptiScaler\\libxess.dll",
+    "OptiScaler\\libxess_dx11.dll",
+    "OptiScaler\\libxess_fg.dll",
+    "OptiScaler\\D3D12_OptiScaler\\D3D12Core.dll",
+    "OptiScaler\\dlssnr\\README.md",
+    "OptiScaler\\dlssnr\\design\\frame-hold.md",
+    "OptiScaler\\dlssnr\\design\\multi-point-anchoring.md",
+    "OptiScaler\\dlssnr\\design\\pre-sr-multipass.md",
+    "OptiScaler\\licenses\\DirectX_LICENSE.txt",
+    "OptiScaler\\licenses\\FidelityFX_v1_LICENSE.md",
+    "OptiScaler\\licenses\\FidelityFX_v2_LICENSE.md",
+    "OptiScaler\\licenses\\RenoDX_ATTRIBUTION.txt",
+    "OptiScaler\\licenses\\XeSS_LICENSE.txt",
+    "OptiScaler\\LICENSE",
+    "OptiScaler\\SHA256SUMS.txt",
+    "OptiScaler\\INSTALL-DLSSNR.md",
+    "nvngx_dlssnr.dll",
+    "OptiScaler.ini"
+  ],
+  "addedDirs": [
+    "OptiScaler",
+    "OptiScaler\\D3D12_OptiScaler",
+    "OptiScaler\\dlssnr",
+    "OptiScaler\\dlssnr\\design",
+    "OptiScaler\\licenses"
+  ],
+  "reshade": {
+    "installedByUs": false,
+    "file": null,
+    "filesAdded": []
+  },
+  "route": "optiscaler-multipass",
+  "optiscaler": {
+    "version": "0.8.3-multipass",
+    "family": "presr-multipass",
+    "hook": "dxgi.dll"
+  }
+}
