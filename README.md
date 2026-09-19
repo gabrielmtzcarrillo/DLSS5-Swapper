@@ -283,6 +283,14 @@ The OptiScaler DLSS-NR route uses the pinned
 The optional Pre-SR Multipass OptiScaler route uses
 [OptiScaler-DLSSNR-PreSR-Multipass](https://github.com/wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass)
 by wilsjo2.
+The optional DLSSNR Cost Scaler route uses
+[DLSSNR-Cost-Scaler](https://github.com/xenmods/DLSSNR-Cost-Scaler)
+by xenmods for the DLSS-NR proxy, companion add-on, and resolution-cost
+scaling controls.
+Thanks to An0sTheGreat for the standalone
+[DLSS 5 Super Anus Manual](https://github.com/An0sTheGreat/DLSS-5-Super-Anus-Manual)
+add-on research, documentation, and release notes around RenoDX DLSS neural
+rendering workflows.
 Optional RTX 40 Multi Frame Generation support uses
 [Universal RTXMFG](https://github.com/dashdogy/RTX40MFG-Unlock), downloaded on
 demand and checksum-verified for native 64-bit games with existing DLSS Frame

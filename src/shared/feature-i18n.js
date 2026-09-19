@@ -32,6 +32,7 @@ const catalog = {
     "installedBackend": "Installed backend",
     "applyBackend": "Apply backend change",
     "installOpti": "Install OptiScaler DLSS-NR",
+    "installCostScaler": "Install DLSSNR Cost Scaler",
     "operationCancelled": "Cancelled. No game files changed.",
     "fArchitecture": "Architecture",
     "fRoute": "Installation route",
@@ -50,22 +51,31 @@ const catalog = {
     "backendHint": "Optional per-game backend. Changes apply only when you click Apply / Install with the game closed. Each backend keeps its own settings.",
     "optiHint": "Optional OptiScaler DLSS-NR from DLSS Unlocked. Needs a 64-bit game with native DLSS enabled. The package includes the patched NR runtime plus Streamline and dlssg_sm86 for RTX 20/30 Multi Frame Generation; RTX 40 users can switch the Ada unlocker in OptiScaler.ini. Anti-cheat games show a risk warning and require confirmation. Downloads on first use. Game compatibility is not guaranteed.",
     "optiMultipassHint": "Optional OptiScaler Pre-SR Multipass fork. Needs a 64-bit DX11/DX12/Vulkan game with native DLSS and a compatible nvngx_dlssnr.dll already available from your selected DLSS source or game folder. It can run Neural Rendering before Super Resolution and apply multiple model passes; start with one pass. Downloads on first use. Experimental and not guaranteed for every game.",
+    "costScalerHint": "Optional DLSSNR Cost Scaler route by xenmods. Needs a 64-bit DirectX 12 game with native DLSS. The app installs RenoDX/ReShade, keeps the real NVIDIA neural runtime as nvngx_dlssnr_real.dll, then uses the Cost Scaler proxy and companion overlay for DLSS-NR resolution scaling. Downloads on first use. Experimental and not guaranteed for every game.",
     "optiDriverOld": "NVIDIA driver older than 616.56. This app supplies the neural-rendering model file itself, so OptiScaler normally still runs on an older driver - which matters because 616.x is reported to break RenoDX, and people roll back deliberately. If the model does not initialise in game, update the driver.",
     "optiCardOld": "Not a Blackwell card ({0}). DLSS Unlocked includes a patched NR runtime and the dlssg_sm86 MFG unlocker for RTX 20/30 cards, but compatibility still depends on the game, driver and Streamline path. Install anyway and test in game - or use the ReShade or Feeder route instead.",
     "optiBridgeHint": "DX11 / Vulkan: Neural Rendering uses the DX12 bridge with FSR output, not native DLSS output. The bridge is configured automatically; keep DLSS selected in the game to provide inputs.",
     "optiVulkanHint": "Vulkan backend changes require Restore originals first. A global ReShade Vulkan layer must not be active; other games’ layer registrations are never disabled automatically.",
     "optiUnsupported": "OptiScaler DLSS-NR is offered only for 64-bit DX11/DX12/Vulkan games, not DX8/DX9, OpenGL or emulators.",
+    "costScalerUnsupported": "DLSSNR Cost Scaler is offered only for 64-bit DirectX 12 games with native DLSS, not DX11, Vulkan, OpenGL, legacy APIs or emulators.",
     "optiNeedsDlss": "OptiScaler needs the game’s original DLSS pipeline. No original DLSS DLL was found; copied/injected DLLs alone do not qualify.",
     "errOptiHardware": "Could not read NVIDIA GPU information. OptiScaler compatibility is not guaranteed.",
     "errOptiVulkanLayer": "A global ReShade Vulkan layer is active. Restore its managed Vulkan installs first; the app will not disable it for other games.",
     "errBackendVulkanSwitch": "For Vulkan, use Restore originals before installing the other backend. Settings are saved for the next installation.",
     "errOptiConflict": "Another loader/mod is present. Restore or remove that mod with its own installer first. No conflicting file was overwritten.",
     "errOptiDownload": "Could not download and verify the official OptiScaler release. Retry after checking your connection; the current backend was not changed.",
+    "errCostScalerConflict": "A pre-existing DLSSNR Cost Scaler real-runtime file is present. Restore or remove that mod with its own installer first; no conflicting file was overwritten.",
+    "errCostScalerDownload": "Could not download and verify the official DLSSNR Cost Scaler release. Retry after checking your connection; the current backend was not changed.",
     "componentQuarantined": "The component downloaded and matched its official checksum, then disappeared before it could be used - that is antivirus quarantine, not your connection. Allow the file or exclude the app’s components folder, then retry. The game was not changed.",
     "driverNeuralFault": "Driver 616.64 and newer ({0}) are measured upstream to fault inside NVIDIA’s own neural runtime with the RenoDX DLSS 5 add-on, on every evaluate; 616.56 is the last one seen completing. Installing anyway is fine - if the neural pass never appears in game, roll the driver back.",
     "oldShaderCompiler": "{0} in the game folder is version {1} - older than the Windows 10 SDK - and Windows loads it in preference to the current copy in System32. The neural pass is compiled as Shader Model 5.1, which this version cannot build, so it quietly does nothing while frames are still reported as delivered. The install moves it into the backup so the game uses the copy Windows ships; Restore puts it back.",
     "rivalConsumerSetAside": "{1} was beside the game: a second RenoDX DLSS consumer. Two cannot run together - ReShade keeps one and drops the other, whatever route was picked. It has been moved into the backup, and Restore puts it back.",
     "errOptiPayload": "OptiScaler payload is incomplete, has the wrong architecture, or failed verification.",
+    "errCostScalerPayload": "DLSSNR Cost Scaler payload is incomplete, has the wrong architecture, or failed verification.",
+    "costScalerDownloading": "Downloading and verifying DLSSNR Cost Scaler…",
+    "costScalerVerified": "Official DLSSNR Cost Scaler release verified.",
+    "costScalerRuntimeSaved": "Original DLSS-NR runtime prepared for the Cost Scaler proxy.",
+    "costScalerInstalled": "DLSSNR Cost Scaler installed.",
     "errGameRunning": "Close the game and its helper processes before installing, switching or restoring.",
     "errProcessCheck": "Could not verify that the game is closed. Restart the app and retry; no installation was started.",
     "errJobBusy": "Another installation or restore is in progress. Wait for it to finish.",
@@ -84,6 +94,7 @@ const catalog = {
     "cancel": "Cancel",
     "antiCheatContinue": "I understand the risks — Install anyway",
     "optiConfirm": "Install the optional OptiScaler DLSS-NR backend for this game?",
+    "costScalerConfirm": "Install the optional DLSSNR Cost Scaler backend for this game?",
     "runtimeDownload": "Open official Microsoft download"
   },
   "ar": {
@@ -407,12 +418,19 @@ for (const code of Object.keys(catalog)) {
   if (!Object.hasOwn(catalog[code], 'optiMultipassHint')) {
     catalog[code].optiMultipassHint = catalog.en.optiMultipassHint;
   }
+  for (const key of ['installCostScaler', 'costScalerHint', 'costScalerUnsupported', 'errCostScalerConflict',
+    'errCostScalerDownload', 'errCostScalerPayload', 'costScalerDownloading', 'costScalerVerified',
+    'costScalerRuntimeSaved', 'costScalerInstalled', 'costScalerConfirm']) {
+    if (!Object.hasOwn(catalog[code], key)) catalog[code][key] = catalog.en[key];
+  }
 }
 const aliases = {
   errOptiConflict: 'errLoaderConflict',
   errOptiVulkanLayer: 'optiVulkanHint',
   errBackendVulkanSwitch: 'optiVulkanHint',
-  legacyDownloadHint: 'errOptiDownload'
+  legacyDownloadHint: 'errOptiDownload',
+  errCostScalerDownload: 'errOptiDownload',
+  errCostScalerConflict: 'errLoaderConflict'
 };
 function locale(code) {
   const exact = Object.keys(catalog).find(key => key.toLowerCase() === String(code).toLowerCase());

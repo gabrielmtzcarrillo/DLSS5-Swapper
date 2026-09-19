@@ -29,6 +29,7 @@ const installRoutes = require('./src/shared/install-routes');
 const renderingApi = require('./src/shared/rendering-api');
 const { projectUrl } = require('./src/core/project-links');
 const optiscaler = require('./src/core/optiscaler');
+const costScaler = require('./src/core/dlssnr-cost-scaler');
 const rtxmfg = require('./src/core/rtxmfg');
 const MFG_VERSIONS = Array.isArray(rtxmfg.VERSIONS) ? rtxmfg.VERSIONS : [rtxmfg];
 const backends = require('./src/core/backend-manager');
@@ -1100,7 +1101,8 @@ ipcMain.handle('details', async (_event, dir) => {
     hasBackup: scan.hasBackup || fs.existsSync(journal.pendingPath(dir)),
     newDlss: detailsPayload && detailsPayload.source ? detailsPayload.source.dlssVersion : null,
     renodxVersion: detailsPayload?.source?.feeder?.hostAddon
-      ? pe.getFileVersion(detailsPayload.source.feeder.hostAddon) : null
+      ? pe.getFileVersion(detailsPayload.source.feeder.hostAddon) : null,
+    costScalerVersions: costScaler.VERSIONS
   };
 });
 
@@ -1185,8 +1187,12 @@ ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, re
   const api = target.api;
   const availableRoutes = installRoutes.routesFor(target, api);
   const requestedOptiRoute = requestedRoute === 'optiscaler' || requestedRoute === 'optiscaler-multipass';
+  const requestedCostRoute = requestedRoute === 'cost-scaler';
   if (requestedOptiRoute && !availableRoutes.includes(requestedRoute)) {
     return { ok: false, code: installRoutes.optiReason(target, api) || 'optiUnsupported' };
+  }
+  if (requestedCostRoute && !availableRoutes.includes(requestedRoute)) {
+    return { ok: false, code: installRoutes.costScalerReason(target, api) || 'costScalerUnsupported' };
   }
   if (!availableRoutes.length) return { ok: false, code: 'unsupportedRendererHint', message: 'This rendering API is not supported. Select the game’s DirectX 11 mode where available.' };
   const recommendedRoute = installRoutes.recommendedRoute(scan, target);
@@ -1245,6 +1251,7 @@ ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, re
   }
 
   let optiRoot = null;
+  let costScalerRoot = null;
   let mfgRoot = null;
   if (requestedMultiFrameGeneration === true && route === 'native') {
     if (target.bitness !== 64 || !scan.dlssFiles.some(file => /^nvngx_dlssg\.dll$/i.test(file.name))) {
@@ -1288,6 +1295,21 @@ ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, re
     }
     catch (err) { return { ok: false, code: componentCode(err, 'errOptiDownload'), message: err.message }; }
     send({ code: 'optiVerified', params: { version: (route === 'optiscaler-multipass' ? optiscaler.MULTIPASS_RELEASE : optiscaler.RELEASE).version } });
+  }
+  if (route === 'cost-scaler') {
+    const confirmation = await dialog.showMessageBox(win, {
+      type: 'warning', title: 'DLSSNR Cost Scaler',
+      message: featureText('costScalerConfirm'),
+      detail: [featureText('costScalerHint'), featureText('backendHint')].join('\n\n'),
+      buttons: [featureText('installCostScaler'), featureText('cancel')], defaultId: 1, cancelId: 1
+    });
+    if (confirmation.response !== 0) return { ok: false, cancelled: true };
+    const missing = missingVCRuntime(64, path.dirname(target.path));
+    if (missing.length) return { ok: false, code: 'runtimeRequiredHint', message: missing.join(', ') };
+    send({ code: 'costScalerDownloading', params: {} });
+    try { costScalerRoot = await costScaler.ensureCostScaler(app.getPath('userData')); }
+    catch (err) { return { ok: false, code: componentCode(err, 'errCostScalerDownload'), message: err.message }; }
+    send({ code: 'costScalerVerified', params: { version: costScaler.RELEASE.version } });
   }
 
   // Check before restoring or touching the game: these DLLs are imported by
@@ -1355,6 +1377,7 @@ ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, re
       emulator: target.emulator,
       source: p.source,
       optiRoot,
+      costScalerRoot,
       mfgRoot,
       companions,
       reshadeSetup: p.reshadeSetup,

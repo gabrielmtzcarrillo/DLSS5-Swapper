@@ -49,8 +49,8 @@ test('the two consumers have different names, so one can never overwrite the oth
   // written into ReShade.ini - so the file installed and the file enabled
   // cannot drift apart.
   assert.match(apply, /const addonSource = multipass \? source\.feeder\.multipassAddon : source\.addon;/);
-  assert.match(apply, /const addonName = addonSource \? path\.basename\(addonSource\) : null;/);
-  assert.match(apply, /enableAddonInIni\(exeDir, addonName, log, gameDir, manifest\)/,
+  assert.match(apply, /const addonName = path\.basename\(addonSource\);/);
+  assert.match(apply, /enableAddonInIni\(exeDir, path\.basename\(addonSource\), log, gameDir, manifest\)/,
     'and ReShade.ini enables that same name, not source.addon');
 });
 
@@ -60,11 +60,13 @@ test('the route follows what the add-on says it presents on', () => {
   // a same-adapter, device-only D3D12 endpoint." - so both DXGI labels, and
   // DX11 especially: that is where the games with no DLSS of their own are.
   for (const label of ['DirectX 12', 'DirectX 11']) {
-    const list = routes.routesFor({ bitness: 64, api: 'dxgi', apiLabel: label, hasNativeDlss: true });
+    const list = routes.routesFor({ bitness: 64, api: 'dxgi', apiLabel: label, hasNativeDlss: true, multipassAvailable: true });
     assert.ok(list.includes('renodx'), label + ': ' + list);
   }
-  assert.ok(routes.routesFor({ bitness: 64, api: 'd3d9', apiLabel: 'DirectX 9' }).includes('renodx'),
+  assert.ok(routes.routesFor({ bitness: 64, api: 'd3d9', apiLabel: 'DirectX 9', multipassAvailable: true }).includes('renodx'),
     'and D3D9, which it presents on through its own D3D12 endpoint');
+  assert.ok(!routes.routesFor({ bitness: 64, api: 'd3d9', apiLabel: 'DirectX 9' }).includes('renodx'),
+    'but only when the multipass consumer is actually in the payload');
 
   // And nowhere it cannot go: the add-on is 64-bit, emulators are excluded as
   // they are for the native route, DX10 has no route at all, and D3D9 reaches
@@ -88,7 +90,7 @@ test('the route follows what the add-on says it presents on', () => {
 test('the route can keep its own settings, like every other route', () => {
   const backends = require('../src/core/backend-manager');
   const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'core', 'backend-manager.js'), 'utf8');
-  assert.match(source, /\['native', 'feeder', 'renodx', 'optiscaler', 'optiscaler-multipass'\]\.includes\(route\)/,
+  assert.match(source, /\['native', 'feeder', 'renodx', 'optiscaler', 'optiscaler-multipass', 'cost-scaler'\]\.includes\(route\)/,
     'renodx is on the list profileFile checks');
   assert.ok(typeof backends.saveProfile === 'function' && typeof backends.loadProfile === 'function');
 });
@@ -110,7 +112,7 @@ test('the panel does not claim this route', () => {
   for (const label of ['DirectX 11', 'DirectX 12']) {
     const list = overlay.routes({ bitness: 64, api: 'dxgi', apiLabel: label });
     assert.ok(!list.includes('renodx'), label + ': ' + list);
-    assert.deepEqual(list, ['native', 'feeder'], 'and the routes it does carry are untouched');
+    assert.deepEqual(list, ['feeder', 'native'], 'and the routes it does carry are untouched');
   }
 });
 

@@ -41,7 +41,8 @@ app.whenReady().then(async () => {
   assert.match(swtorOptions, /value="feeder" selected/);
   assert.doesNotMatch(swtorOptions, /value="native"/);
   assert.match(await run(`installOptions({}, { bitness: 32, api: 'd3d8', apiLabel: 'DirectX 8' }, 'DX8')`), /value="feeder" selected/);
-  assert.match(swtorOptions, /value="optiscaler" disabled/);
+  assert.doesNotMatch(swtorOptions, /value="optiscaler"/);
+  assert.doesNotMatch(swtorOptions, /value="optiscaler-multipass"/);
   assert.match(await run(`installOptions({ antiCheatWarning: true }, null, 'NoExecutable')`), /anti-cheat-warning/);
   assert.match(await run(`installOptions({}, { bitness: 32, api: 'd3d10', apiLabel: 'DirectX 10', antiCheatWarning: true }, 'DX10')`), /anti-cheat-warning/);
   const count = () => run(`document.querySelectorAll('#groups .card').length`);

@@ -22,6 +22,18 @@ NVIDIA's Neural Rendering runtime is not supplied by this OptiScaler release.
 This integration uses the existing Swapper payload's `nvngx_dlssnr.dll`; it
 does not relicense that file or imply NVIDIA support for the integration.
 
+## DLSSNR-Cost-Scaler (optional download)
+
+The optional DLSSNR Cost Scaler route downloads the MIT-licensed
+DLSSNR-Cost-Scaler v1.0.6 release by xen:
+https://github.com/xenmods/DLSSNR-Cost-Scaler
+
+The release archive is downloaded on demand and verified with the pinned
+SHA-256 checksum in `src/core/dlssnr-cost-scaler.js`. Swapper installs its
+`nvngx_dlssnr.dll` proxy, `nvngx_dlssnr.ini`, companion ReShade add-on,
+README and licence while preserving the real NVIDIA neural-rendering runtime
+as `nvngx_dlssnr_real.dll`. Upstream binaries are not bundled or modified.
+
 ## Universal RTXMFG (optional download)
 
 The optional RTX 40 Multi Frame Generation component downloads the MIT-licensed

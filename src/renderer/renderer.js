@@ -596,6 +596,14 @@ function selectedRoute(d, pick, dir) {
   return routes[0];
 }
 
+function routeLabel(route) {
+  if (route === 'optiscaler') return 'OptiScaler DLSS-NR';
+  if (route === 'optiscaler-multipass') return 'OptiScaler Pre-SR Multipass';
+  if (route === 'cost-scaler') return 'DLSSNR Cost Scaler';
+  if (route === 'renodx') return 'RenoDX DLSS Tool (multipass)';
+  return t(route === 'feeder' ? 'routeFeeder' : 'routeNative');
+}
+
 function installLabel(d, pick, dir) {
   const route = pick && selectedRoute(d, pick, dir);
   if (d.installedRoute && route !== d.installedRoute) return t('applyBackend');
@@ -609,7 +617,9 @@ function installOptions(d, pick, dir) {
   const api = selectedApi(pick, dir);
   const route = selectedRoute(d, pick, dir, api.api);
   const routes = routesFor(pick);
+  const reShadeRoutes = routes.filter(item => item !== 'optiscaler' && item !== 'optiscaler-multipass');
   const opti = route === 'optiscaler' || route === 'optiscaler-multipass';
+  const cost = route === 'cost-scaler';
   const multipassOpti = route === 'optiscaler-multipass';
   const optiReason = window.installRoutes.optiReason(window.renderingApi.effective(pick, pick.apiOverride || 'auto'));
   const legacy = ['d3d8', 'd3d9'].includes(api.api);
@@ -634,12 +644,12 @@ function installOptions(d, pick, dir) {
     <div class="install-options">
       ${apiField}
       <label><span>${t('fBackend')}</span><select id="backendChoice" aria-describedby="backendHint">
-        <option value="reshade"${opti ? '' : ' selected'}>${t('backendReShade')}</option>
-        <option value="optiscaler"${route === 'optiscaler' ? ' selected' : ''}${optiReason ? ' disabled' : ''}>OptiScaler DLSS-NR</option>
-        <option value="optiscaler-multipass"${multipassOpti ? ' selected' : ''}${optiReason ? ' disabled' : ''}>OptiScaler Pre-SR Multipass</option>
+        ${reShadeRoutes.length ? `<option value="reshade"${opti ? '' : ' selected'}>${t('backendReShade')}</option>` : ''}
+        ${routes.includes('optiscaler') ? `<option value="optiscaler"${route === 'optiscaler' ? ' selected' : ''}>OptiScaler DLSS-NR</option>` : ''}
+        ${routes.includes('optiscaler-multipass') ? `<option value="optiscaler-multipass"${multipassOpti ? ' selected' : ''}>OptiScaler Pre-SR Multipass</option>` : ''}
       </select></label>
-      ${!opti ? `<label><span>${t('fRoute')}</span><select id="routeChoice">${routes.filter(item => item !== 'optiscaler' && item !== 'optiscaler-multipass').map((item) =>
-        `<option value="${item}"${item === route ? ' selected' : ''}>${item === 'renodx' ? 'RenoDX DLSS Tool (multipass)' : t(item === 'feeder' ? 'routeFeeder' : 'routeNative')}</option>`).join('')}</select></label>
+      ${!opti && reShadeRoutes.length ? `<label><span>${t('fRoute')}</span><select id="routeChoice">${reShadeRoutes.map((item) =>
+        `<option value="${item}"${item === route ? ' selected' : ''}>${esc(routeLabel(item))}</option>`).join('')}</select></label>
       ` : ''}
       ${!opti && legacy ? `<label><span>${t('setDgVoodooVersion')}</span><select id="installDgVoodooVersion" aria-describedby="installDgVoodooHint">
         ${d.dgVoodooVersions.map(version => `<option value="${esc(version)}"${version === selectedDgVoodoo ? ' selected' : ''}>dgVoodoo2 v${esc(version)}</option>`).join('')}
@@ -651,16 +661,16 @@ function installOptions(d, pick, dir) {
         ${d.dlssSources.map(item => `<option value="${esc(item.path || '')}"${(item.path || '') === selectedDlssSource ? ' selected' : ''}>${esc(item.label)}</option>`).join('')}
       </select></label>` : ''}
       ${!opti ? `<fieldset class="effect-options"><legend>${t('additionalEffects')}</legend>${RESHADE_EFFECTS.map(([id, label, description]) => `<label class="check-option"><span><b>${esc(label)}</b><small>${esc(description)}</small></span><input type="checkbox" data-reshade-effect="${id}"${reshadeEffectChoices.get(dir)?.has(id) ? ' checked' : ''}></label>`).join('')}</fieldset>` : ''}
-      ${!opti && route === 'native' && pick.bitness === 64 && d.nativeAddons?.length ? `<label><span>${t('setAddonVersion')}</span><select id="installNativeAddon" aria-describedby="nativeAddonHint">
+      ${!opti && !cost && route === 'native' && pick.bitness === 64 && d.nativeAddons?.length ? `<label><span>${t('setAddonVersion')}</span><select id="installNativeAddon" aria-describedby="nativeAddonHint">
         ${d.nativeAddons.map(item => `<option value="${esc(item.path)}">${esc(item.label)}${item.downloadable ? ' · download on install' : (item.version && item.label !== `v${item.version}` ? ` · v${esc(item.version)}` : '')}</option>`).join('')}
       </select></label>` : ''}
-      ${!opti && route === 'native' && pick.bitness === 64 && pick.multiFrameGenerationAvailable ? `<label class="check-option"><span>${t('multiFrameGeneration')}</span><input id="multiFrameGeneration" type="checkbox"${multiFrameGenerationChoice.get(dir) ? ' checked' : ''} aria-describedby="multiFrameGenerationHint"></label>` : ''}
-      ${!opti && route === 'native' && pick.bitness === 64 && pick.multiFrameGenerationAvailable && multiFrameGenerationChoice.get(dir) && d.mfgVersions?.length ? `<label><span>${t('setMfgVersion')}</span><select id="installMfgVersion" aria-describedby="installMfgHint">
+      ${!opti && !cost && route === 'native' && pick.bitness === 64 && pick.multiFrameGenerationAvailable ? `<label class="check-option"><span>${t('multiFrameGeneration')}</span><input id="multiFrameGeneration" type="checkbox"${multiFrameGenerationChoice.get(dir) ? ' checked' : ''} aria-describedby="multiFrameGenerationHint"></label>` : ''}
+      ${!opti && !cost && route === 'native' && pick.bitness === 64 && pick.multiFrameGenerationAvailable && multiFrameGenerationChoice.get(dir) && d.mfgVersions?.length ? `<label><span>${t('setMfgVersion')}</span><select id="installMfgVersion" aria-describedby="installMfgHint">
         ${d.mfgVersions.map(version => `<option value="${esc(version)}"${version === selectedMfg ? ' selected' : ''}>RTX40MFG v${esc(version)}</option>`).join('')}
       </select></label>` : ''}
     </div>
     ${apiHint}
-    <div class="emu-note backend-note" id="backendHint"><span>${t(opti ? (multipassOpti ? 'optiMultipassHint' : 'optiHint') : 'backendHint')}</span>
+    <div class="emu-note backend-note" id="backendHint"><span>${t(opti ? (multipassOpti ? 'optiMultipassHint' : 'optiHint') : cost ? 'costScalerHint' : 'backendHint')}</span>
       ${optiReason ? `<span>${t(optiReason)}</span>` : ''}
       ${route === 'native' ? `<span>${t('nativeEffectsHint')}</span>` : ''}
       ${opti && (api.api === 'vulkan' || api.label === 'DirectX 11') ? `<span>${t('optiBridgeHint')}</span>` : ''}
@@ -672,9 +682,9 @@ function installOptions(d, pick, dir) {
     ${legacy ? `<div class="emu-note" id="installDgVoodooHint"><span>${t('setDgVoodooHint')}</span><span>${t('legacyRendererHint')}</span><span>${t('legacyDlssOptionsHint')}</span></div>` : ''}
     ${componentVersions.length ? `<div class="emu-note" id="installComponentsHint"><b>${t('installComponents')}</b>${componentVersions.map(esc).map(value => `<span>${value}</span>`).join('')}</div>` : ''}
     ${!opti && route === 'feeder' ? `<div class="emu-note" id="installFeederHint"><span>${t('setFeederHint')}</span></div>` : ''}
-    ${!opti && route === 'native' && pick.bitness === 64 && d.nativeAddons?.length ? `<div class="emu-note" id="nativeAddonHint">Select the RenoDX DLSS 5 build to install. Only one is installed at a time.</div>` : ''}
-    ${!opti && route === 'native' && pick.bitness === 64 && pick.multiFrameGenerationAvailable ? `<div class="emu-note" id="multiFrameGenerationHint"><span>${t('multiFrameGenerationHint')}</span></div>` : ''}
-    ${!opti && route === 'native' && pick.bitness === 64 && pick.multiFrameGenerationAvailable && multiFrameGenerationChoice.get(dir) && d.mfgVersions?.length ? `<div class="emu-note" id="installMfgHint"><span>${t('setMfgHint')}</span></div>` : ''}
+    ${!opti && !cost && route === 'native' && pick.bitness === 64 && d.nativeAddons?.length ? `<div class="emu-note" id="nativeAddonHint">Select the RenoDX DLSS 5 build to install. Only one is installed at a time.</div>` : ''}
+    ${!opti && !cost && route === 'native' && pick.bitness === 64 && pick.multiFrameGenerationAvailable ? `<div class="emu-note" id="multiFrameGenerationHint"><span>${t('multiFrameGenerationHint')}</span></div>` : ''}
+    ${!opti && !cost && route === 'native' && pick.bitness === 64 && pick.multiFrameGenerationAvailable && multiFrameGenerationChoice.get(dir) && d.mfgVersions?.length ? `<div class="emu-note" id="installMfgHint"><span>${t('setMfgHint')}</span></div>` : ''}
     ${pick.emulator ? `<div class="emu-note"><b>${esc(pick.emulator.name)} · ${esc(pick.emulator.system)}</b><span>${esc(pick.emulator.hint)}</span><span>${t('emulatorDepthHint')}</span>${pick.emulator.key === 'xenia' ? `<span>${t('xeniaUiHint')}</span>` : ''}</div>` : ''}`;
 }
 
@@ -764,7 +774,7 @@ async function openSheet(dir, keepLog = false) {
         ${showExeFact && pick ? spec(t('fExe'), esc(pick.rel.split(/[\/]/).pop()), null, pick.rel) : ''}
         ${pick ? spec(t('fArchitecture'), `${pick.bitness || '?'}-bit`) : ''}
         ${spec(t('fApi'), esc((pick && selectedApi(pick, dir).label) || reasonText(d.reason) || '—'), pick && selectedApi(pick, dir).api === 'dxgi' ? 'on' : 'off')}
-        ${spec(t('installedBackend'), esc(d.installedRoute === 'optiscaler-multipass' ? 'OptiScaler Pre-SR Multipass' : d.installedRoute === 'optiscaler' ? 'OptiScaler DLSS-NR' : d.installedRoute === 'renodx' ? 'RenoDX DLSS Tool' : d.installedRoute ? 'ReShade' : t('none')), d.installedRoute ? 'on' : 'off')}
+        ${spec(t('installedBackend'), esc(d.installedRoute ? routeLabel(d.installedRoute) : t('none')), d.installedRoute ? 'on' : 'off')}
         ${d.installedFeederVersion ? spec(t('installedFeederVersion'), `v${esc(d.installedFeederVersion)}`, 'on') : ''}
         ${spec('DLSS', pick && selectedRoute(d, pick, dir) === 'optiscaler' ? esc(inGameDlss || t('none')) : dlssValue(inGameDlss, d.newDlss, upToDate))}
         ${d.optiscaler ? spec('OptiScaler', esc(d.optiscaler.installed ? d.optiscaler.version : t('notInstalled')), d.optiscaler.installed ? 'on' : 'off') : ''}

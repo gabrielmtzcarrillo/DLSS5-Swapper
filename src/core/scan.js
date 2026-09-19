@@ -579,6 +579,7 @@ async function scanGame(gameDir) {
         previousReShadeRoute: data.previousReShadeRoute || null,
         feederVersion: data.route === 'feeder' && data.feeder ? data.feeder.version || null : null,
         optiscaler: (data.route === 'optiscaler' || data.route === 'optiscaler-multipass') ? data.optiscaler : null,
+        costScaler: data.route === 'cost-scaler' ? data.costScaler : null,
         added: Array.isArray(data.added) ? data.added.filter(item => typeof item === 'string') : [],
         vulkanLayer: data.vulkanLayer || null
       };

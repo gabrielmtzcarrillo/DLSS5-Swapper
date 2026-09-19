@@ -7,6 +7,7 @@ const journal = require('./file-journal');
 const core = require('./apply');
 const ini = require('./feeder-config');
 const optiscaler = require('./optiscaler');
+const costScaler = require('./dlssnr-cost-scaler');
 const compatibility = require('./compatibility');
 
 function readManifest(gameDir) {
@@ -18,7 +19,7 @@ function readManifest(gameDir) {
   return manifest;
 }
 function profileFile(gameDir, exePath, api, route) {
-  if (!['native', 'feeder', 'renodx', 'optiscaler', 'optiscaler-multipass'].includes(route)) throw new Error('Invalid route');
+  if (!['native', 'feeder', 'renodx', 'optiscaler', 'optiscaler-multipass', 'cost-scaler'].includes(route)) throw new Error('Invalid route');
   const id = crypto.createHash('sha256').update(`${path.relative(gameDir, exePath).toLowerCase()}|${api}`).digest('hex').slice(0, 24);
   return journal.safePath(gameDir, `_DLSS5_Backup/.profiles/${id}-${route}.json`);
 }
@@ -31,6 +32,7 @@ const CONFIG_FILE = /\.(ini|cfg|txt)$/i;
 function configPaths(gameDir, exePath, route) {
   const dir = path.dirname(exePath);
   if (route === 'optiscaler' || route === 'optiscaler-multipass') return [path.join(dir, 'OptiScaler.ini')];
+  if (route === 'cost-scaler') return [path.join(dir, 'ReShade.ini'), path.join(dir, 'nvngx_dlssnr.ini')];
   const reshade = path.join(dir, 'ReShade.ini');
   const preset = ini.presetPath(dir, ini.readText(reshade));
   const files = [reshade, path.join(dir, 'dlss5-feed.cfg'), path.join(dir, 'host64', 'ReShade.ini')];
@@ -97,7 +99,8 @@ async function install(config, log = () => {}) {
   }
   return journal.transaction(config.gameDir, async () => {
     const optiRoute = config.route === 'optiscaler' || config.route === 'optiscaler-multipass';
-    if (!old && !optiRoute) {
+    const costRoute = config.route === 'cost-scaler';
+    if (!old && !optiRoute && !costRoute) {
       // Native ReShade may already have an untouched custom preset. Capture
       // its original bytes before the first managed session, while saving
       // subsequent user tuning separately for round-trip backend switches.
@@ -114,7 +117,7 @@ async function install(config, log = () => {}) {
     }
     if (!optiRoute) compatibility.assertLoaderCompatible(config, changed ? null : old);
     const profile = changed || !old ? loadProfile(config) : {};
-    if (!optiRoute && Object.keys(profile).length) {
+    if (!optiRoute && !costRoute && Object.keys(profile).length) {
       const manifest = core.beginManifest(config.gameDir, config.exePath, config.api);
       for (const [rel, text] of Object.entries(profile)) {
         await core.writeTracked(manifest, config.gameDir, journal.safePath(config.gameDir, rel), text, { kind: 'config' });
@@ -122,6 +125,10 @@ async function install(config, log = () => {}) {
     }
     let manifest;
     if (optiRoute) manifest = await optiscaler.install({ ...config, profile }, log);
+    else if (costRoute) {
+      manifest = await core.applySwap({ ...config, route: 'native' }, log);
+      manifest = await costScaler.install({ ...config, profile }, manifest, log);
+    }
     else manifest = await core.applySwap(config, log);
     for (const companion of config.route === 'native' ? (config.companions || []) : []) {
       const dest = path.join(path.dirname(config.exePath), path.basename(companion));
@@ -129,7 +136,7 @@ async function install(config, log = () => {}) {
       await core.enableAddonInIni(path.dirname(config.exePath), path.basename(companion),
         (code, params) => log({ code, params }), config.gameDir, manifest);
     }
-    if (optiRoute && old && old.route !== config.route) manifest.previousReShadeRoute = old.route;
+    if ((optiRoute || costRoute) && old && old.route !== config.route) manifest.previousReShadeRoute = old.route;
     await core.saveActiveManifest(config.gameDir, manifest);
     return manifest;
   });
