@@ -51,12 +51,16 @@ const catalog = {
     "backendHint": "Optional per-game backend. Changes apply only when you click Apply / Install with the game closed. Each backend keeps its own settings.",
     "optiHint": "Optional OptiScaler DLSS-NR from DLSS Unlocked. Needs a 64-bit game with native DLSS enabled. The package includes the patched NR runtime plus Streamline and dlssg_sm86 for RTX 20/30 Multi Frame Generation; RTX 40 users can switch the Ada unlocker in OptiScaler.ini. Anti-cheat games show a risk warning and require confirmation. Downloads on first use. Game compatibility is not guaranteed.",
     "optiMultipassHint": "Optional OptiScaler Pre-SR Multipass fork. Needs a 64-bit DX11/DX12/Vulkan game with native DLSS and a compatible nvngx_dlssnr.dll already available from your selected DLSS source or game folder. It can run Neural Rendering before Super Resolution and apply multiple model passes; start with one pass. Downloads on first use. Experimental and not guaranteed for every game.",
+    "optiFsrHint": "Optional official OptiScaler FSR 4.1.1 route. Needs a 64-bit DX11/DX12/Vulkan game with an FSR2/FSR3/FFX input path; native DLSS is not required. The app installs the upstream layout, enables FSR4 update, forces INT8, and turns on the FSR4 watermark so fallback is visible. Downloads on first use. Experimental and not guaranteed for every game.",
+    "optiFsrHybridHint": "Optional hybrid OptiScaler route for DLSS-NR before FSR 4.1.1. Needs a 64-bit game with native DLSS. The app installs the official FSR package, keeps or adds nvngx_dlssnr.dll, runs Neural Rendering before Super Resolution, starts WorkingScale at 0.67, forces FSR4 INT8, and enables the FSR4 watermark. Experimental and not guaranteed for every game.",
     "costScalerHint": "Optional DLSSNR Cost Scaler route by xenmods. Needs a 64-bit DirectX 12 game with native DLSS. The app installs RenoDX/ReShade, keeps the real NVIDIA neural runtime as nvngx_dlssnr_real.dll, then uses the Cost Scaler proxy and companion overlay for DLSS-NR resolution scaling. Downloads on first use. Experimental and not guaranteed for every game.",
     "optiDriverOld": "NVIDIA driver older than 616.56. This app supplies the neural-rendering model file itself, so OptiScaler normally still runs on an older driver - which matters because 616.x is reported to break RenoDX, and people roll back deliberately. If the model does not initialise in game, update the driver.",
     "optiCardOld": "Not a Blackwell card ({0}). DLSS Unlocked includes a patched NR runtime and the dlssg_sm86 MFG unlocker for RTX 20/30 cards, but compatibility still depends on the game, driver and Streamline path. Install anyway and test in game - or use the ReShade or Feeder route instead.",
     "optiBridgeHint": "DX11 / Vulkan: Neural Rendering uses the DX12 bridge with FSR output, not native DLSS output. The bridge is configured automatically; keep DLSS selected in the game to provide inputs.",
     "optiVulkanHint": "Vulkan backend changes require Restore originals first. A global ReShade Vulkan layer must not be active; other games’ layer registrations are never disabled automatically.",
     "optiUnsupported": "OptiScaler DLSS-NR is offered only for 64-bit DX11/DX12/Vulkan games, not DX8/DX9, OpenGL or emulators.",
+    "optiFsrUnsupported": "OptiScaler FSR 4.1.1 is offered only for 64-bit DX11/DX12/Vulkan games with an FSR2/FSR3/FFX input path, not DX8/DX9, OpenGL or emulators.",
+    "optiFsrHybridUnsupported": "OptiScaler DLSS-NR + FSR 4.1.1 is offered only for 64-bit DX11/DX12/Vulkan games with native DLSS, not DX8/DX9, OpenGL or emulators.",
     "costScalerUnsupported": "DLSSNR Cost Scaler is offered only for 64-bit DirectX 12 games with native DLSS, not DX11, Vulkan, OpenGL, legacy APIs or emulators.",
     "optiNeedsDlss": "OptiScaler needs the game’s original DLSS pipeline. No original DLSS DLL was found; copied/injected DLLs alone do not qualify.",
     "errOptiHardware": "Could not read NVIDIA GPU information. OptiScaler compatibility is not guaranteed.",
@@ -94,6 +98,8 @@ const catalog = {
     "cancel": "Cancel",
     "antiCheatContinue": "I understand the risks — Install anyway",
     "optiConfirm": "Install the optional OptiScaler DLSS-NR backend for this game?",
+    "optiFsrConfirm": "Install the optional OptiScaler FSR 4.1.1 backend for this game?",
+    "optiFsrHybridConfirm": "Install the optional OptiScaler DLSS-NR + FSR 4.1.1 backend for this game?",
     "costScalerConfirm": "Install the optional DLSSNR Cost Scaler backend for this game?",
     "runtimeDownload": "Open official Microsoft download"
   },
@@ -420,7 +426,9 @@ for (const code of Object.keys(catalog)) {
   }
   for (const key of ['installCostScaler', 'costScalerHint', 'costScalerUnsupported', 'errCostScalerConflict',
     'errCostScalerDownload', 'errCostScalerPayload', 'costScalerDownloading', 'costScalerVerified',
-    'costScalerRuntimeSaved', 'costScalerInstalled', 'costScalerConfirm']) {
+    'costScalerRuntimeSaved', 'costScalerInstalled', 'costScalerConfirm',
+    'optiFsrHint', 'optiFsrUnsupported', 'optiFsrConfirm',
+    'optiFsrHybridHint', 'optiFsrHybridUnsupported', 'optiFsrHybridConfirm']) {
     if (!Object.hasOwn(catalog[code], key)) catalog[code][key] = catalog.en[key];
   }
 }

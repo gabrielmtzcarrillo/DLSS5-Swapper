@@ -39,3 +39,13 @@ test('the Pre-SR Multipass fork is a separate pinned OptiScaler route', () => {
   assert.equal(opti.releaseFor('nonsense', 'optiscaler-multipass').version, opti.MULTIPASS_RELEASE.version);
   assert.notEqual(opti.MULTIPASS_RELEASE.sha256, opti.RELEASE.sha256);
 });
+
+test('the official FSR build is a separate pinned OptiScaler route', () => {
+  assert.equal(opti.FSR_RELEASES[0], opti.FSR_RELEASE);
+  assert.match(opti.FSR_RELEASE.version, /^\d/, opti.FSR_RELEASE.version);
+  assert.match(opti.FSR_RELEASE.url, /optiscaler\/OptiScaler\/releases\/download\/v0\.9\.4\/Optiscaler_0\.9\.4-final\.20260718\._MM\.7z$/);
+  assert.match(opti.FSR_RELEASE.sha256, /^[0-9a-f]{64}$/);
+  assert.equal(opti.releaseFor(opti.FSR_RELEASE.version, 'optiscaler-fsr').version, opti.FSR_RELEASE.version);
+  assert.equal(opti.releaseFor('nonsense', 'optiscaler-fsr').version, opti.FSR_RELEASE.version);
+  assert.notEqual(opti.FSR_RELEASE.sha256, opti.RELEASE.sha256);
+});

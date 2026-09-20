@@ -1186,10 +1186,16 @@ ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, re
   target.hasNativeDlss = installRoutes.nativeDlssPresent(scan);
   const api = target.api;
   const availableRoutes = installRoutes.routesFor(target, api);
-  const requestedOptiRoute = requestedRoute === 'optiscaler' || requestedRoute === 'optiscaler-multipass';
+  const requestedOptiRoute = requestedRoute === 'optiscaler' || requestedRoute === 'optiscaler-multipass' ||
+    requestedRoute === 'optiscaler-fsr' || requestedRoute === 'optiscaler-fsr-hybrid';
   const requestedCostRoute = requestedRoute === 'cost-scaler';
   if (requestedOptiRoute && !availableRoutes.includes(requestedRoute)) {
-    return { ok: false, code: installRoutes.optiReason(target, api) || 'optiUnsupported' };
+    const reason = requestedRoute === 'optiscaler-fsr'
+      ? installRoutes.optiFsrReason(target, api)
+      : requestedRoute === 'optiscaler-fsr-hybrid'
+      ? installRoutes.optiFsrHybridReason(target, api)
+      : installRoutes.optiReason(target, api);
+    return { ok: false, code: reason || 'optiUnsupported' };
   }
   if (requestedCostRoute && !availableRoutes.includes(requestedRoute)) {
     return { ok: false, code: installRoutes.costScalerReason(target, api) || 'costScalerUnsupported' };
@@ -1264,10 +1270,10 @@ ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, re
     try { mfgRoot = await rtxmfg.ensureRTXMFG(app.getPath('userData'), requestedMfgVersion); }
     catch (err) { return { ok: false, code: componentCode(err, 'errMfgDownload'), message: err.message }; }
   }
-  if (route === 'optiscaler' || route === 'optiscaler-multipass') {
-    optiscaler.checkConflicts(dir, target.path, old, api);
+  if (route === 'optiscaler' || route === 'optiscaler-multipass' || route === 'optiscaler-fsr' || route === 'optiscaler-fsr-hybrid') {
+    optiscaler.checkConflicts(dir, target.path, old, api, route);
     if (api === 'vulkan' && await vulkanLayer.existing(vulkanLayer.defaultRunner)) return { ok: false, code: 'errOptiVulkanLayer' };
-    const gpu = await guards.gpuInfo();
+    const gpu = route === 'optiscaler-fsr' || route === 'optiscaler-fsr-hybrid' ? null : await guards.gpuInfo();
     // Neither the card nor the driver is refused outright any more. Upstream
     // 0.2.0 says plainly that architectures older than Blackwell work with a
     // modded nvngx_dlssnr.dll, which the person supplies themselves - so this
@@ -1275,12 +1281,12 @@ ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, re
     const oldCard = gpu ? !guards.gpuModelSupported(gpu) : false;
     const oldDriver = gpu ? !guards.driverSupported(gpu) : false;
     const confirmation = await dialog.showMessageBox(win, {
-      type: 'warning', title: route === 'optiscaler-multipass' ? 'OptiScaler Pre-SR Multipass' : 'OptiScaler DLSS-NR',
-      message: featureText('optiConfirm'),
-      detail: [gpu ? gpu.map(g => `${g.name} — ${g.driver}`).join('\n') : featureText('errOptiHardware'),
+      type: 'warning', title: route === 'optiscaler-multipass' ? 'OptiScaler Pre-SR Multipass' : route === 'optiscaler-fsr' ? 'OptiScaler FSR 4.1.1' : route === 'optiscaler-fsr-hybrid' ? 'OptiScaler DLSS-NR + FSR 4.1.1' : 'OptiScaler DLSS-NR',
+      message: featureText(route === 'optiscaler-fsr' ? 'optiFsrConfirm' : route === 'optiscaler-fsr-hybrid' ? 'optiFsrHybridConfirm' : 'optiConfirm'),
+      detail: [gpu ? gpu.map(g => `${g.name} - ${g.driver}`).join('\n') : (route === 'optiscaler-fsr' || route === 'optiscaler-fsr-hybrid' ? null : featureText('errOptiHardware')),
         oldCard ? featureText('optiCardOld') : null,
         oldDriver ? featureText('optiDriverOld') : null,
-        featureText(route === 'optiscaler-multipass' ? 'optiMultipassHint' : 'optiHint'),
+        featureText(route === 'optiscaler-multipass' ? 'optiMultipassHint' : route === 'optiscaler-fsr' ? 'optiFsrHint' : route === 'optiscaler-fsr-hybrid' ? 'optiFsrHybridHint' : 'optiHint'),
         featureText('optiBridgeHint'), featureText('backendHint')].filter(Boolean).join('\n\n'),
       buttons: [featureText('installOpti'), featureText('cancel')], defaultId: 1, cancelId: 1
     });
@@ -1289,12 +1295,14 @@ ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, re
     if (missing.length) return { ok: false, code: 'runtimeRequiredHint', message: missing.join(', ') };
     send({ code: 'optiDownloading', params: {} });
     try {
-      optiRoot = route === 'optiscaler-multipass'
+      optiRoot = route === 'optiscaler-fsr' || route === 'optiscaler-fsr-hybrid'
+        ? await optiscaler.ensureFsr(app.getPath('userData'))
+        : route === 'optiscaler-multipass'
         ? await optiscaler.ensureMultipass(app.getPath('userData'))
         : await optiscaler.ensureOptiScaler(app.getPath('userData'));
     }
     catch (err) { return { ok: false, code: componentCode(err, 'errOptiDownload'), message: err.message }; }
-    send({ code: 'optiVerified', params: { version: (route === 'optiscaler-multipass' ? optiscaler.MULTIPASS_RELEASE : optiscaler.RELEASE).version } });
+    send({ code: 'optiVerified', params: { version: (route === 'optiscaler-fsr' || route === 'optiscaler-fsr-hybrid' ? optiscaler.FSR_RELEASE : route === 'optiscaler-multipass' ? optiscaler.MULTIPASS_RELEASE : optiscaler.RELEASE).version } });
   }
   if (route === 'cost-scaler') {
     const confirmation = await dialog.showMessageBox(win, {

@@ -90,7 +90,7 @@ test('the route follows what the add-on says it presents on', () => {
 test('the route can keep its own settings, like every other route', () => {
   const backends = require('../src/core/backend-manager');
   const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'core', 'backend-manager.js'), 'utf8');
-  assert.match(source, /\['native', 'feeder', 'renodx', 'optiscaler', 'optiscaler-multipass', 'cost-scaler'\]\.includes\(route\)/,
+  assert.match(source, /\['native', 'feeder', 'renodx', 'optiscaler', 'optiscaler-multipass', 'optiscaler-fsr', 'optiscaler-fsr-hybrid', 'cost-scaler'\]\.includes\(route\)/,
     'renodx is on the list profileFile checks');
   assert.ok(typeof backends.saveProfile === 'function' && typeof backends.loadProfile === 'function');
 });

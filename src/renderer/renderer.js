@@ -599,6 +599,8 @@ function selectedRoute(d, pick, dir) {
 function routeLabel(route) {
   if (route === 'optiscaler') return 'OptiScaler DLSS-NR';
   if (route === 'optiscaler-multipass') return 'OptiScaler Pre-SR Multipass';
+  if (route === 'optiscaler-fsr') return 'OptiScaler FSR 4.1.1';
+  if (route === 'optiscaler-fsr-hybrid') return 'OptiScaler DLSS-NR + FSR 4.1.1';
   if (route === 'cost-scaler') return 'DLSSNR Cost Scaler';
   if (route === 'renodx') return 'RenoDX DLSS Tool (multipass)';
   return t(route === 'feeder' ? 'routeFeeder' : 'routeNative');
@@ -607,7 +609,7 @@ function routeLabel(route) {
 function installLabel(d, pick, dir) {
   const route = pick && selectedRoute(d, pick, dir);
   if (d.installedRoute && route !== d.installedRoute) return t('applyBackend');
-  return route === 'optiscaler' || route === 'optiscaler-multipass' ? t('installOpti') : t('install');
+  return route === 'optiscaler' || route === 'optiscaler-multipass' || route === 'optiscaler-fsr' || route === 'optiscaler-fsr-hybrid' ? t('installOpti') : t('install');
 }
 
 function installOptions(d, pick, dir) {
@@ -617,11 +619,15 @@ function installOptions(d, pick, dir) {
   const api = selectedApi(pick, dir);
   const route = selectedRoute(d, pick, dir, api.api);
   const routes = routesFor(pick);
-  const reShadeRoutes = routes.filter(item => item !== 'optiscaler' && item !== 'optiscaler-multipass');
-  const opti = route === 'optiscaler' || route === 'optiscaler-multipass';
+  const reShadeRoutes = routes.filter(item => item !== 'optiscaler' && item !== 'optiscaler-multipass' && item !== 'optiscaler-fsr' && item !== 'optiscaler-fsr-hybrid');
+  const opti = route === 'optiscaler' || route === 'optiscaler-multipass' || route === 'optiscaler-fsr' || route === 'optiscaler-fsr-hybrid';
   const cost = route === 'cost-scaler';
   const multipassOpti = route === 'optiscaler-multipass';
+  const fsrOpti = route === 'optiscaler-fsr';
+  const hybridOpti = route === 'optiscaler-fsr-hybrid';
   const optiReason = window.installRoutes.optiReason(window.renderingApi.effective(pick, pick.apiOverride || 'auto'));
+  const optiFsrReason = window.installRoutes.optiFsrReason(window.renderingApi.effective(pick, pick.apiOverride || 'auto'));
+  const optiFsrHybridReason = window.installRoutes.optiFsrHybridReason(window.renderingApi.effective(pick, pick.apiOverride || 'auto'));
   const legacy = ['d3d8', 'd3d9'].includes(api.api);
   const selectedDgVoodoo = dgVoodooVersionChoice.get(dir) || d.dgVoodooVersion;
   const selectedMfg = mfgVersionChoice.get(dir) || d.mfgVersion;
@@ -647,6 +653,8 @@ function installOptions(d, pick, dir) {
         ${reShadeRoutes.length ? `<option value="reshade"${opti ? '' : ' selected'}>${t('backendReShade')}</option>` : ''}
         ${routes.includes('optiscaler') ? `<option value="optiscaler"${route === 'optiscaler' ? ' selected' : ''}>OptiScaler DLSS-NR</option>` : ''}
         ${routes.includes('optiscaler-multipass') ? `<option value="optiscaler-multipass"${multipassOpti ? ' selected' : ''}>OptiScaler Pre-SR Multipass</option>` : ''}
+        ${routes.includes('optiscaler-fsr') ? `<option value="optiscaler-fsr"${fsrOpti ? ' selected' : ''}>OptiScaler FSR 4.1.1</option>` : ''}
+        ${routes.includes('optiscaler-fsr-hybrid') ? `<option value="optiscaler-fsr-hybrid"${hybridOpti ? ' selected' : ''}>OptiScaler DLSS-NR + FSR 4.1.1</option>` : ''}
       </select></label>
       ${!opti && reShadeRoutes.length ? `<label><span>${t('fRoute')}</span><select id="routeChoice">${reShadeRoutes.map((item) =>
         `<option value="${item}"${item === route ? ' selected' : ''}>${esc(routeLabel(item))}</option>`).join('')}</select></label>
@@ -670,8 +678,8 @@ function installOptions(d, pick, dir) {
       </select></label>` : ''}
     </div>
     ${apiHint}
-    <div class="emu-note backend-note" id="backendHint"><span>${t(opti ? (multipassOpti ? 'optiMultipassHint' : 'optiHint') : cost ? 'costScalerHint' : 'backendHint')}</span>
-      ${optiReason ? `<span>${t(optiReason)}</span>` : ''}
+    <div class="emu-note backend-note" id="backendHint"><span>${t(opti ? (hybridOpti ? 'optiFsrHybridHint' : fsrOpti ? 'optiFsrHint' : multipassOpti ? 'optiMultipassHint' : 'optiHint') : cost ? 'costScalerHint' : 'backendHint')}</span>
+      ${opti && (hybridOpti ? optiFsrHybridReason : fsrOpti ? optiFsrReason : optiReason) ? `<span>${t(hybridOpti ? optiFsrHybridReason : fsrOpti ? optiFsrReason : optiReason)}</span>` : ''}
       ${route === 'native' ? `<span>${t('nativeEffectsHint')}</span>` : ''}
       ${opti && (api.api === 'vulkan' || api.label === 'DirectX 11') ? `<span>${t('optiBridgeHint')}</span>` : ''}
       ${opti && api.api === 'vulkan' ? `<span>${t('optiVulkanHint')}</span>` : ''}
@@ -856,7 +864,7 @@ async function openSheet(dir, keepLog = false) {
   };
   const backendSelect = $('backendChoice');
   if (backendSelect) backendSelect.onchange = () => {
-    const available = routesFor(pick).filter(route => route !== 'optiscaler' && route !== 'optiscaler-multipass');
+    const available = routesFor(pick).filter(route => route !== 'optiscaler' && route !== 'optiscaler-multipass' && route !== 'optiscaler-fsr' && route !== 'optiscaler-fsr-hybrid');
     const previous = available.includes(d.previousReShadeRoute) ? d.previousReShadeRoute : d.recommendedRoute;
     routeChoice.set(dir, backendSelect.value === 'reshade' ? (available.includes(previous) ? previous : available[0]) : backendSelect.value);
     openSheet(dir, true);

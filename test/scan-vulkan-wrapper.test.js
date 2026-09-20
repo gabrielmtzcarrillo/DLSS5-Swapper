@@ -30,7 +30,7 @@ test('a game running through DXVK is reported as Vulkan, not DirectX', async (t)
   // The renderer the executable itself names stays selectable, for a wrapper
   // that is present but not in use.
   assert.deepEqual(scan.chosen.apiChoices.map(c => c.label), ['Vulkan', 'DirectX 9']);
-  assert.deepEqual(routes.routesFor(scan.chosen), ['feeder']);
+  assert.deepEqual(routes.routesFor(scan.chosen), ['feeder', 'optiscaler-fsr']);
 });
 
 test('the same game without the wrapper stays DirectX', async (t) => {

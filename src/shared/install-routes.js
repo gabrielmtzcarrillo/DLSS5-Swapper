@@ -15,6 +15,17 @@
     if (!target.hasNativeDlss) return 'optiNeedsDlss';
     return null;
   }
+  function optiFsrReason(target, api = target && target.api) {
+    if (!target || target.bitness !== 64 || target.emulator) return 'optiFsrUnsupported';
+    if (!['dxgi', 'vulkan'].includes(api) || target.apiLabel === 'DirectX 10') return 'optiFsrUnsupported';
+    return null;
+  }
+  function optiFsrHybridReason(target, api = target && target.api) {
+    if (!target || target.bitness !== 64 || target.emulator) return 'optiFsrHybridUnsupported';
+    if (!['dxgi', 'vulkan'].includes(api) || target.apiLabel === 'DirectX 10') return 'optiFsrHybridUnsupported';
+    if (!target.hasNativeDlss) return 'optiNeedsDlss';
+    return null;
+  }
   function costScalerReason(target, api = target && target.api) {
     if (!target || target.bitness !== 64 || target.emulator) return 'costScalerUnsupported';
     if (api !== 'dxgi' || target.apiLabel !== 'DirectX 12') return 'costScalerUnsupported';
@@ -29,6 +40,8 @@
     if (api === 'd3d10') return target.bitness === 32 ? ['feeder'] : [];
     if (['d3d9', 'opengl', 'vulkan'].includes(api)) {
       const routes = !optiReason(target, api) ? ['feeder', 'optiscaler', 'optiscaler-multipass'] : ['feeder'];
+      if (!optiFsrReason(target, api)) routes.push('optiscaler-fsr');
+      if (!optiFsrHybridReason(target, api)) routes.push('optiscaler-fsr-hybrid');
       if (api === 'd3d9' && target.bitness === 64 && !target.emulator && target.multipassAvailable === true) routes.push('renodx');
       return routes;
     }
@@ -36,6 +49,8 @@
     if (target.apiLabel === 'DirectX 10') return target.bitness === 32 ? ['feeder'] : [];
     const routes = target.bitness === 32 || target.emulator || target.apiLabel !== 'DirectX 12' ? ['feeder'] : ['native', 'feeder'];
     if (!optiReason(target, api)) routes.push('optiscaler', 'optiscaler-multipass');
+    if (!optiFsrReason(target, api)) routes.push('optiscaler-fsr');
+    if (!optiFsrHybridReason(target, api)) routes.push('optiscaler-fsr-hybrid');
     if (!costScalerReason(target, api)) routes.push('cost-scaler');
     if (target.bitness === 64 && !target.emulator && target.multipassAvailable === true) routes.push('renodx');
     return routes;
@@ -47,7 +62,7 @@
       ? 'feeder' : nativeDlss ? 'native' : 'feeder';
     return routes.includes(wanted) ? wanted : (routes[0] || null);
   }
-  const api = { routesFor, recommendedRoute, nativeDlssPresent, optiReason, costScalerReason };
+  const api = { routesFor, recommendedRoute, nativeDlssPresent, optiReason, optiFsrReason, optiFsrHybridReason, costScalerReason };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.installRoutes = api;
 })(typeof window !== 'undefined' ? window : globalThis);

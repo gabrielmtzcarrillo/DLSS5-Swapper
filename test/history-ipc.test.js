@@ -43,13 +43,14 @@ test('install/restore IPC records all backends, not failures/cancels, and valida
     } },
     './src/core/compatibility': { assertSafeTarget() {}, hasAntiCheat: () => protectedTarget },
     './src/core/install-guards': { assertGameClosed: async () => {}, antiCheatPresent: () => false, gpuInfo: async () => [{}], gpuSupported: () => true, gpuModelSupported: () => true, driverSupported: () => true },
-    './src/shared/install-routes': { nativeDlssPresent: () => true, routesFor: () => ['native', 'feeder', 'optiscaler', 'optiscaler-multipass', 'cost-scaler'], recommendedRoute: () => 'native', costScalerReason: () => null },
+    './src/shared/install-routes': { nativeDlssPresent: () => true, routesFor: () => ['native', 'feeder', 'optiscaler', 'optiscaler-multipass', 'optiscaler-fsr', 'optiscaler-fsr-hybrid', 'cost-scaler'], recommendedRoute: () => 'native', optiFsrReason: () => null, optiFsrHybridReason: () => null, costScalerReason: () => null },
     './src/core/runtime-components.js': { missingVCRuntime: () => [], ensureLumenite: async () => null },
     // releaseFor picks which pinned build a game asked for (#238); the stub
     // has to answer it now that the install path consults it.
-    './src/core/optiscaler': { checkConflicts() {}, ensureOptiScaler: async () => root, ensureMultipass: async () => root,
+    './src/core/optiscaler': { checkConflicts() {}, ensureOptiScaler: async () => root, ensureMultipass: async () => root, ensureFsr: async () => root,
       RELEASE: { version: 'fixture' }, RELEASES: [{ version: 'fixture' }],
       MULTIPASS_RELEASE: { version: 'fixture-multipass' }, MULTIPASS_RELEASES: [{ version: 'fixture-multipass' }],
+      FSR_RELEASE: { version: 'fixture-fsr' }, FSR_RELEASES: [{ version: 'fixture-fsr' }],
       releaseFor: (v) => ({ version: v || 'fixture' }) },
     './src/core/dlssnr-cost-scaler': { ensureCostScaler: async () => root, RELEASE: { version: 'fixture-cost' }, VERSIONS: [{ version: 'fixture-cost' }] },
     './src/core/backend-manager': {
@@ -71,33 +72,33 @@ test('install/restore IPC records all backends, not failures/cancels, and valida
   vm.runInContext(fs.readFileSync(main, 'utf8'), context, { filename: main });
   vm.runInContext(`payload = () => ({ source: { feeder: { ok32: true, ok64: true } } }); companionAddons = () => [];`, context);
   const event = { sender: { send() {} } };
-  for (const route of ['native', 'native', 'feeder', 'optiscaler', 'optiscaler-multipass', 'cost-scaler']) {
+  for (const route of ['native', 'native', 'feeder', 'optiscaler', 'optiscaler-multipass', 'optiscaler-fsr', 'optiscaler-fsr-hybrid', 'cost-scaler']) {
     assert.equal((await handlers.get('install')(event, game, target.path, route, 'dxgi')).ok, true);
   }
-  assert.equal(handlers.get('history')().rows.length, 6, 'no renderer.touch call needed');
+  assert.equal(handlers.get('history')().rows.length, 8, 'no renderer.touch call needed');
   failInstall = true;
   assert.equal((await handlers.get('install')(event, game, target.path, 'native', 'dxgi')).ok, false);
   failInstall = false; cancel = true;
   assert.equal((await handlers.get('install')(event, game, target.path, 'optiscaler', 'dxgi')).cancelled, true);
-  assert.equal(handlers.get('history')().rows.length, 6);
+  assert.equal(handlers.get('history')().rows.length, 8);
   protectedTarget = true;
   const callsBeforeWarning = installedConfigs.length;
-  for (const route of ['native', 'feeder', 'optiscaler', 'optiscaler-multipass', 'cost-scaler']) {
+  for (const route of ['native', 'feeder', 'optiscaler', 'optiscaler-multipass', 'optiscaler-fsr', 'optiscaler-fsr-hybrid', 'cost-scaler']) {
     assert.equal((await handlers.get('install')(event, game, target.path, route, 'dxgi')).cancelled, true);
   }
   assert.equal(installedConfigs.length, callsBeforeWarning, 'cancel never reaches the installer');
-  assert.equal(handlers.get('history')().rows.length, 6);
-  assert.equal(riskDialogs.length, 5);
+  assert.equal(handlers.get('history')().rows.length, 8);
+  assert.equal(riskDialogs.length, 7);
   antiCheatResponse = 1; cancel = false;
-  for (const route of ['native', 'feeder', 'optiscaler', 'optiscaler-multipass', 'cost-scaler']) {
+  for (const route of ['native', 'feeder', 'optiscaler', 'optiscaler-multipass', 'optiscaler-fsr', 'optiscaler-fsr-hybrid', 'cost-scaler']) {
     assert.equal((await handlers.get('install')(event, game, target.path, route, 'dxgi')).ok, true);
     assert.equal(installedConfigs.at(-1).antiCheatAcknowledged, true);
   }
-  assert.equal(handlers.get('history')().rows.length, 11);
+  assert.equal(handlers.get('history')().rows.length, 15);
   antiCheatResponse = 0;
   assert.equal((await handlers.get('install')(event, game, target.path, 'native', 'dxgi')).cancelled, true, 'a previous approval is never remembered');
-  assert.equal(handlers.get('history')().rows.length, 11);
-  assert.equal(riskDialogs.length, 11);
+  assert.equal(handlers.get('history')().rows.length, 15);
+  assert.equal(riskDialogs.length, 15);
   // Restore still works for protected games even if scanning crashes or the
   // executable has disappeared. It uses the backup/journal, not PE detection.
   scanFails = true;
@@ -108,12 +109,12 @@ test('install/restore IPC records all backends, not failures/cancels, and valida
   assert.equal((await handlers.get('restore')(event, game)).ok, false, 'no backup is not a successful restore');
   scanFails = false;
   const rows = handlers.get('history')().rows;
-  assert.equal(rows.length, 12);
-  assert.equal(riskDialogs.length, 11, 'restore does not ask for injection consent');
+  assert.equal(rows.length, 16);
+  assert.equal(riskDialogs.length, 15, 'restore does not ask for injection consent');
   assert.equal(rows.filter(row => row.action === 'restore').length, 1);
   handlers.get('reset')();
   vm.runInContext('historyStore = null', context);
-  assert.equal(handlers.get('history')().rows.length, 12, 'persists independently from library state');
+  assert.equal(handlers.get('history')().rows.length, 16, 'persists independently from library state');
   const copy = handlers.get('copy-text');
   for (const bad of [null, {}, '', ' ', 'a'.repeat(16 * 1024 * 1024 + 1)]) assert.equal(copy(event, bad), false);
   assert.equal(copied, null);

@@ -58,9 +58,9 @@ test('the Vulkan renderer reaches the profile, the routes and the API override',
   assert.equal(scan.gameApiProfile('D:/Games/Other/Other.exe', vulkan), null);
 
   const target = { path: 'D:/Games/RDR2/RDR2.exe', bitness: 64, api: profile.detected.api, apiLabel: profile.detected.label };
-  assert.deepEqual(routes.routesFor(target), ['feeder']);
+  assert.deepEqual(routes.routesFor(target), ['feeder', 'optiscaler-fsr']);
   // Automatic follows the game; an explicit choice still wins over it.
   assert.equal(renderingApi.effective(target, 'auto').apiLabel, 'Vulkan');
   assert.equal(renderingApi.effective(target, 'd3d12').apiLabel, 'DirectX 12');
-  assert.deepEqual(routes.routesFor(renderingApi.effective(target, 'd3d12')), ['native', 'feeder', 'renodx']);
+  assert.deepEqual(routes.routesFor(renderingApi.effective(target, 'd3d12')), ['native', 'feeder', 'optiscaler-fsr']);
 });

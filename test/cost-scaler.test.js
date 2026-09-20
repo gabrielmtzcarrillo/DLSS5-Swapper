@@ -20,7 +20,7 @@ function payload(root) {
 
 test('DLSSNR Cost Scaler is a separate DX12-native-DLSS route', () => {
   const target = { bitness: 64, api: 'dxgi', apiLabel: 'DirectX 12', hasNativeDlss: true };
-  assert.deepEqual(routes.routesFor(target), ['native', 'feeder', 'optiscaler', 'optiscaler-multipass', 'cost-scaler']);
+  assert.deepEqual(routes.routesFor(target), ['native', 'feeder', 'optiscaler', 'optiscaler-multipass', 'optiscaler-fsr', 'optiscaler-fsr-hybrid', 'cost-scaler']);
   assert.equal(routes.costScalerReason(target), null);
   for (const delta of [
     { bitness: 32 },

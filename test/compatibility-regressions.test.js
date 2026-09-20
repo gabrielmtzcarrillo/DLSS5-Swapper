@@ -92,7 +92,7 @@ test('ARC Raiders and detected anti-cheat require per-attempt consent, not a har
     for (const value of [false, undefined, 'true', 1]) {
       assert.throws(() => compatibility.assertAntiCheatConsent(dir, exePath, value), { code: 'errAntiCheatConsent' });
     }
-    for (const route of ['native', 'feeder', 'optiscaler', 'optiscaler-multipass', 'cost-scaler']) {
+    for (const route of ['native', 'feeder', 'optiscaler', 'optiscaler-multipass', 'optiscaler-fsr', 'optiscaler-fsr-hybrid', 'cost-scaler']) {
       await assert.rejects(manager.install({ gameDir: dir, exePath, route }), { code: 'errAntiCheatConsent' });
       assert.equal(fs.existsSync(core.backupRoot(dir)), false);
     }

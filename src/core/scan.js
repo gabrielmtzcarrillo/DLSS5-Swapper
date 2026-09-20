@@ -578,7 +578,7 @@ async function scanGame(gameDir) {
         exe: data.game && data.game.exe,
         previousReShadeRoute: data.previousReShadeRoute || null,
         feederVersion: data.route === 'feeder' && data.feeder ? data.feeder.version || null : null,
-        optiscaler: (data.route === 'optiscaler' || data.route === 'optiscaler-multipass') ? data.optiscaler : null,
+        optiscaler: (data.route === 'optiscaler' || data.route === 'optiscaler-multipass' || data.route === 'optiscaler-fsr' || data.route === 'optiscaler-fsr-hybrid') ? data.optiscaler : null,
         costScaler: data.route === 'cost-scaler' ? data.costScaler : null,
         added: Array.isArray(data.added) ? data.added.filter(item => typeof item === 'string') : [],
         vulkanLayer: data.vulkanLayer || null
@@ -586,7 +586,11 @@ async function scanGame(gameDir) {
       if (install.optiscaler) {
         const exeDir = path.dirname(safePath(gameDir, data.game.exe));
         const hook = safePath(gameDir, path.relative(gameDir, path.join(exeDir, install.optiscaler.hook)));
-        const required = data.route === 'optiscaler-multipass'
+        const required = data.route === 'optiscaler-fsr-hybrid'
+          ? ['OptiScaler.ini', 'amd_fidelityfx_upscaler_dx12.dll', 'D3D12_Optiscaler/D3D12Core.dll', 'nvngx_dlssnr.dll']
+          : data.route === 'optiscaler-fsr'
+          ? ['OptiScaler.ini', 'amd_fidelityfx_upscaler_dx12.dll', 'D3D12_Optiscaler/D3D12Core.dll']
+          : data.route === 'optiscaler-multipass'
           ? ['nvngx_dlssnr.dll', 'OptiScaler.ini']
           : ['nvngx.dll_dlssnr.dll', 'nvngx_dlssnr.dll', 'OptiScaler.ini'];
         install.optiscaler.installed = pe.versionMentions(hook, 'OptiScaler') &&

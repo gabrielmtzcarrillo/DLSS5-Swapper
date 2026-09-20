@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { execFile } = require('child_process');
 const extractZip = require('extract-zip');
 const pe = require('./pe');
 const ini = require('./feeder-config');
@@ -21,8 +22,15 @@ const MULTIPASS_RELEASE = Object.freeze({
   licenseHash: '855487ab700c2fe2618b75dc66f53dfbec12f99636321cbaf07805e3227488ef',
   family: 'presr-multipass'
 });
+const FSR_RELEASE = Object.freeze({
+  version: '0.9.4-fsr',
+  url: 'https://github.com/optiscaler/OptiScaler/releases/download/v0.9.4/Optiscaler_0.9.4-final.20260718._MM.7z',
+  sha256: '575cb4df866116093df75af607e37fd70e10f5163e0f23fd5c804142e80ef0ad',
+  family: 'fsr'
+});
 const RELEASES = Object.freeze([RELEASE]);
 const MULTIPASS_RELEASES = Object.freeze([MULTIPASS_RELEASE]);
+const FSR_RELEASES = Object.freeze([FSR_RELEASE]);
 const LIBRARIES = [
   'libxess.dll', 'libxess_dx11.dll', 'libxess_fg.dll', 'libxell.dll',
   'amd_fidelityfx_vk.dll', 'amd_fidelityfx_upscaler_dx12.dll',
@@ -42,11 +50,33 @@ function fail(code, message = code) { return Object.assign(new Error(message), {
 function isMultipassRoute(route) {
   return route === 'optiscaler-multipass' || route === 'presr-multipass';
 }
+function isFsrRoute(route) {
+  return route === 'optiscaler-fsr' || route === 'optiscaler-fsr-hybrid';
+}
+function isFsrHybridRoute(route) {
+  return route === 'optiscaler-fsr-hybrid';
+}
+function isOptiRoute(route) {
+  return route === 'optiscaler' || isMultipassRoute(route) || isFsrRoute(route);
+}
 function releaseFor(version, route = 'optiscaler') {
-  const releases = isMultipassRoute(route) ? MULTIPASS_RELEASES : RELEASES;
+  const releases = isFsrRoute(route) ? FSR_RELEASES : isMultipassRoute(route) ? MULTIPASS_RELEASES : RELEASES;
   return releases.find(item => item.version === version) || releases[0];
 }
 function validatePayload(root, route = 'optiscaler') {
+  if (isFsrRoute(route)) {
+    for (const rel of [
+      'OptiScaler.dll', 'amd_fidelityfx_dx12.dll', 'amd_fidelityfx_upscaler_dx12.dll',
+      'amd_fidelityfx_framegeneration_dx12.dll', 'amd_fidelityfx_vk.dll',
+      'D3D12_Optiscaler/D3D12Core.dll'
+    ]) {
+      if (pe.getBitness(safePath(root, rel)) !== 64) throw fail('errOptiPayload');
+    }
+    for (const rel of ['OptiScaler.ini', 'setup_windows.bat']) {
+      if (!fs.existsSync(safePath(root, rel))) throw fail('errOptiPayload');
+    }
+    return;
+  }
   if (isMultipassRoute(route)) {
     for (const rel of ['OptiScaler.dll', ...MULTIPASS_LIBRARIES.map(f => 'OptiScaler/' + f)]) {
       if (pe.getBitness(safePath(root, rel)) !== 64) throw fail('errOptiPayload');
@@ -72,16 +102,31 @@ async function ensureMultipass(cacheRoot, version) {
   const release = releaseFor(version, 'optiscaler-multipass');
   return ensureRelease(cacheRoot, release, 'optiscaler-multipass');
 }
+async function ensureFsr(cacheRoot, version) {
+  const release = releaseFor(version, 'optiscaler-fsr');
+  return ensureRelease(cacheRoot, release, 'optiscaler-fsr');
+}
 async function ensureRelease(cacheRoot, release, route) {
   const base = path.join(path.resolve(cacheRoot), 'components', `OptiScaler-${release.version}`);
-  const archive = base + '.zip';
+  const archive = base + (release.url.toLowerCase().endsWith('.7z') ? '.7z' : '.zip');
   if (!fs.existsSync(archive) || digest(archive) !== release.sha256) await fetchVerified(release.url, release.sha256, archive);
   if (digest(archive) !== release.sha256) throw fail('errOptiPayload');
   // Re-extract verified bytes on every install. The installer below copies an
   // explicit file list, not unknown files that may have appeared in the cache.
-  await extractZip(archive, { dir: base });
+  await extractArchive(archive, base);
   validatePayload(base, route);
   return base;
+}
+function extractArchive(archive, dir) {
+  if (archive.toLowerCase().endsWith('.zip')) return extractZip(archive, { dir });
+  return new Promise((resolve, reject) => {
+    fs.promises.mkdir(dir, { recursive: true }).then(() => {
+      execFile('tar', ['-xf', archive, '-C', dir], { windowsHide: true }, (error) => {
+        if (error) reject(fail('errOptiPayload', error.message));
+        else resolve();
+      });
+    }, reject);
+  });
 }
 function hookFor(api) { return api === 'vulkan' ? 'winmm.dll' : 'dxgi.dll'; }
 function isSystemDebugHelper(name, file) {
@@ -95,6 +140,7 @@ function isSystemDebugHelper(name, file) {
 }
 function configure(text, target) {
   let out = text;
+  if (isFsrRoute(target.route)) return configureFsr(out, target);
   for (const [section, key, value] of [
     ['DlssNr', 'Enabled', 'true'], ['Log', 'LogToFile', 'true'], ['Log', 'LogLevel', '2'],
     ['Spoofing', 'Dxgi', 'false'], ['Plugins', 'LoadAsiPlugins', 'false'],
@@ -119,8 +165,40 @@ function configure(text, target) {
   }
   return out;
 }
+function configureFsr(text, target) {
+  let out = text;
+  for (const [section, key, value] of [
+    ['ProcessFilter', 'TargetProcessName', path.basename(target.exePath)],
+    ['FSR', 'Fsr4Update', 'true'],
+    ['FSR', 'Fsr4ForceEnableInt8', 'true'],
+    ['FSR', 'Fsr4EnableWatermark', 'true']
+  ]) out = ini.setIni(out, section, key, value);
+  if (ini.getIni(out, 'FSR', 'Fsr4ForceModel') !== null) out = ini.setIni(out, 'FSR', 'Fsr4ForceModel', '2');
+  if (isFsrHybridRoute(target.route)) {
+    for (const [key, value] of [
+      ['Enabled', 'true'], ['RunBeforeSR', 'true'], ['Passes', '1'], ['WorkingScale', '0.67']
+    ]) {
+      const current = ini.getIni(out, 'DlssNr', key);
+      if (!current || current === 'auto' || key === 'Enabled' || key === 'RunBeforeSR') {
+        out = ini.setIni(out, 'DlssNr', key, value);
+      }
+    }
+    out = ini.setIni(out, 'Log', 'LogToFile', 'true');
+    out = ini.setIni(out, 'Log', 'LogLevel', '2');
+  }
+  const upscalers = [
+    ['Dx12Upscaler', 'fsr31'],
+    ['Dx11Upscaler', 'fsr31_12'],
+    ['VulkanUpscaler', 'fsr31_12']
+  ];
+  for (const [key, value] of upscalers) {
+    const current = ini.getIni(out, 'Upscalers', key);
+    if (!current || current === 'auto') out = ini.setIni(out, 'Upscalers', key, value);
+  }
+  return out;
+}
 function filesUnder(root, relRoot) {
-  const base = safePath(root, relRoot);
+  const base = relRoot ? safePath(root, relRoot) : path.resolve(root);
   const queue = [''];
   const files = [];
   while (queue.length) {
@@ -135,6 +213,12 @@ function filesUnder(root, relRoot) {
   return files;
 }
 function copyPlan(root, api, route = 'optiscaler') {
+  if (isFsrRoute(route)) {
+    return filesUnder(root, '').map(from => ({
+      from: safePath(root, from),
+      to: from === 'OptiScaler.dll' ? hookFor(api) : from
+    }));
+  }
   if (isMultipassRoute(route)) {
     const plan = [
       ['OptiScaler.dll', hookFor(api)],
@@ -155,7 +239,7 @@ function copyPlan(root, api, route = 'optiscaler') {
     ['Licenses/DISCLAIMER.txt', 'OptiScaler/README-DLSS-Unlocked.txt']
   ].map(([from, to]) => ({ from: safePath(root, from), to }));
 }
-function checkConflicts(gameDir, exePath, manifest, api) {
+function checkConflicts(gameDir, exePath, manifest, api, route = 'optiscaler') {
   // Inspect the baseline too: switching restores it before installing. Never
   // silently clobber another proxy, OptiScaler install or ASI loader.
   const { originalPath } = require('./apply');
@@ -178,6 +262,7 @@ function checkConflicts(gameDir, exePath, manifest, api) {
   }
   const pluginDir = path.join(exeDir, 'OptiScaler', 'plugins');
   if (fs.existsSync(pluginDir) && fs.readdirSync(pluginDir).some(f => /\.(dll|asi)$/i.test(f))) throw fail('errOptiConflict', 'Existing OptiScaler plugins need to be removed with their original installer first.');
+  if (isFsrRoute(route) && manifest) return;
   const plannedOptiFiles = [...new Set([...LIBRARIES, ...MULTIPASS_LIBRARIES,
     ...STREAMLINE.map(f => 'streamline/' + f), ...DLSSG_SM86.map(f => 'dlssg_sm86/' + f)])];
   for (const name of plannedOptiFiles) {
@@ -188,9 +273,36 @@ function checkConflicts(gameDir, exePath, manifest, api) {
 async function install(config, log) {
   const { beginManifest, copyTracked, writeTracked, saveActiveManifest } = require('./apply');
   const { gameDir, exePath, api, optiRoot, source } = config;
-  const route = config.route === 'optiscaler-multipass' ? 'optiscaler-multipass' : 'optiscaler';
+  const route = isOptiRoute(config.route) ? config.route : 'optiscaler';
   validatePayload(optiRoot, route);
   const exeDir = path.dirname(exePath);
+  if (isFsrRoute(route)) {
+    const manifest = beginManifest(gameDir, exePath, api);
+    manifest.route = route;
+    manifest.game.bitness = 64;
+    manifest.game.apiLabel = config.apiLabel;
+    manifest.optiscaler = { version: FSR_RELEASE.version, family: FSR_RELEASE.family, hook: hookFor(api) };
+    for (const item of copyPlan(optiRoot, api, route)) {
+      const rel = await copyTracked(manifest, gameDir, item.from, path.join(exeDir, item.to), { kind: 'optiscaler' });
+      log({ code: 'added', params: { rel } });
+    }
+    if (isFsrHybridRoute(route)) {
+      const existingModel = path.join(exeDir, 'nvngx_dlssnr.dll');
+      const nr = source.payload.find(f => f.name.toLowerCase() === 'nvngx_dlssnr.dll');
+      if (nr && pe.getBitness(nr.path) !== 64) throw fail('errNoNeuralRuntime');
+      if (!nr && pe.getBitness(existingModel) !== 64) throw fail('errNoNeuralRuntime');
+      if (fs.existsSync(existingModel)) {
+        log({ code: 'neuralModelKept', params: { rel: path.relative(gameDir, existingModel) } });
+      } else if (nr) {
+        await copyTracked(manifest, gameDir, nr.path, existingModel, { kind: 'runtime' });
+      }
+    }
+    const file = path.join(exeDir, 'OptiScaler.ini');
+    const prior = config.profile?.[path.relative(gameDir, file)] ?? ini.readText(file);
+    await writeTracked(manifest, gameDir, file, configure(prior || ini.readText(path.join(optiRoot, 'OptiScaler.ini')), { ...config, route }), { kind: 'config' });
+    await saveActiveManifest(gameDir, manifest);
+    return manifest;
+  }
   const existingModel = path.join(exeDir, 'nvngx_dlssnr.dll');
   const nr = source.payload.find(f => f.name.toLowerCase() === 'nvngx_dlssnr.dll') ||
     (!isMultipassRoute(route) ? { name: 'nvngx_dlssnr.dll', path: safePath(optiRoot, 'nvngx_dlssnr.dll') } : null);
@@ -224,7 +336,8 @@ async function install(config, log) {
   return manifest;
 }
 module.exports = {
-  RELEASE, RELEASES, MULTIPASS_RELEASE, MULTIPASS_RELEASES, releaseFor, LIBRARIES,
-  ensureOptiScaler, ensureMultipass, validatePayload, configure, copyPlan, hookFor,
-  checkConflicts, install, isMultipassRoute
+  RELEASE, RELEASES, MULTIPASS_RELEASE, MULTIPASS_RELEASES, FSR_RELEASE, FSR_RELEASES,
+  releaseFor, LIBRARIES, ensureOptiScaler, ensureMultipass, ensureFsr, validatePayload,
+  configure, configureFsr, copyPlan, hookFor, checkConflicts, install, isMultipassRoute,
+  isFsrRoute, isFsrHybridRoute, isOptiRoute
 };

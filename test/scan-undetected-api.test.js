@@ -51,8 +51,8 @@ test('a game that ships DLSS is still found when its executable names no API', a
   assert.deepEqual(routes.routesFor(scan.chosen), []);
   const picked = renderingApi.effective(scan.chosen, 'd3d12');
   assert.equal(picked.apiLabel, 'DirectX 12');
-  assert.deepEqual(routes.routesFor(picked), ['native', 'feeder', 'renodx']);
-  assert.deepEqual(routes.routesFor(renderingApi.effective(scan.chosen, 'vulkan')), ['feeder']);
+  assert.deepEqual(routes.routesFor(picked), ['native', 'feeder', 'optiscaler-fsr']);
+  assert.deepEqual(routes.routesFor(renderingApi.effective(scan.chosen, 'vulkan')), ['feeder', 'optiscaler-fsr']);
 });
 
 test('a folder with no NVIDIA runtime is not turned into a game by this', async (t) => {

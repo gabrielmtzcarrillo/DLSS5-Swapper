@@ -19,7 +19,7 @@ function readManifest(gameDir) {
   return manifest;
 }
 function profileFile(gameDir, exePath, api, route) {
-  if (!['native', 'feeder', 'renodx', 'optiscaler', 'optiscaler-multipass', 'cost-scaler'].includes(route)) throw new Error('Invalid route');
+  if (!['native', 'feeder', 'renodx', 'optiscaler', 'optiscaler-multipass', 'optiscaler-fsr', 'optiscaler-fsr-hybrid', 'cost-scaler'].includes(route)) throw new Error('Invalid route');
   const id = crypto.createHash('sha256').update(`${path.relative(gameDir, exePath).toLowerCase()}|${api}`).digest('hex').slice(0, 24);
   return journal.safePath(gameDir, `_DLSS5_Backup/.profiles/${id}-${route}.json`);
 }
@@ -31,7 +31,7 @@ const CONFIG_FILE = /\.(ini|cfg|txt)$/i;
 
 function configPaths(gameDir, exePath, route) {
   const dir = path.dirname(exePath);
-  if (route === 'optiscaler' || route === 'optiscaler-multipass') return [path.join(dir, 'OptiScaler.ini')];
+  if (route === 'optiscaler' || route === 'optiscaler-multipass' || route === 'optiscaler-fsr' || route === 'optiscaler-fsr-hybrid') return [path.join(dir, 'OptiScaler.ini')];
   if (route === 'cost-scaler') return [path.join(dir, 'ReShade.ini'), path.join(dir, 'nvngx_dlssnr.ini')];
   const reshade = path.join(dir, 'ReShade.ini');
   const preset = ini.presetPath(dir, ini.readText(reshade));
@@ -98,7 +98,7 @@ async function install(config, log = () => {}) {
     return core.applySwap(config, log);
   }
   return journal.transaction(config.gameDir, async () => {
-    const optiRoute = config.route === 'optiscaler' || config.route === 'optiscaler-multipass';
+    const optiRoute = config.route === 'optiscaler' || config.route === 'optiscaler-multipass' || config.route === 'optiscaler-fsr' || config.route === 'optiscaler-fsr-hybrid';
     const costRoute = config.route === 'cost-scaler';
     if (!old && !optiRoute && !costRoute) {
       // Native ReShade may already have an untouched custom preset. Capture
