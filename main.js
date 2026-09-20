@@ -33,6 +33,7 @@ const costScaler = require('./src/core/dlssnr-cost-scaler');
 const rtxmfg = require('./src/core/rtxmfg');
 const MFG_VERSIONS = Array.isArray(rtxmfg.VERSIONS) ? rtxmfg.VERSIONS : [rtxmfg];
 const backends = require('./src/core/backend-manager');
+const gamePresets = require('./src/core/game-presets');
 const journal = require('./src/core/file-journal');
 const guards = require('./src/core/install-guards');
 const compatibility = require('./src/core/compatibility');
@@ -45,6 +46,7 @@ const gameMenu = require('./src/core/game-menu');
 let historyStore;
 const history = () => historyStore || (historyStore = new HistoryStore(path.join(app.getPath('userData'), 'history.jsonl')));
 const gameName = dir => lastGames.find(game => keyFor(game.dir) === keyFor(dir))?.name || path.basename(dir);
+const gameAppId = dir => lastGames.find(game => keyFor(game.dir) === keyFor(dir))?.appid || null;
 function saveOperation(dir, manifest, action, send) {
   try { history().record(dir, manifest, action, gameName(dir)); }
   catch (error) {
@@ -443,6 +445,8 @@ ipcMain.handle('settings', () => {
     dgVoodooVersion: dgVoodooRelease(state.dgVoodooVersion).version,
     feederVersions: FEEDER_VERSIONS.map(item => item.version),
     feederVersion: (feederReleases.release ? feederReleases.release(state.feederVersion) : FEEDER_VERSIONS[0]).version,
+    optiscalerVersions: optiscaler.RELEASES.map(item => item.version),
+    optiscalerVersion: optiscaler.RELEASE.version,
     mfgVersions: MFG_VERSIONS.map(item => item.version),
     mfgVersion: (rtxmfg.release ? rtxmfg.release() : MFG_VERSIONS[0]).version,
     excludedRoots: state.excludedRoots || [],
@@ -1054,6 +1058,11 @@ ipcMain.handle('details', async (_event, dir) => {
   );
   const state = loadState();
   const hasNativeDlss = installRoutes.nativeDlssPresent(scan);
+  const appid = gameAppId(dir);
+  let activeManifest = null;
+  if (scan.hasBackup) {
+    try { activeManifest = backends.readManifest(dir); } catch {}
+  }
   const files = [...scan.dlssFiles, ...scan.streamlineFiles]
     .map((f) => ({ rel: f.rel, name: f.name, version: f.version }));
   return {
@@ -1069,6 +1078,8 @@ ipcMain.handle('details', async (_event, dir) => {
     nativeAddons: nativeAddonChoices(),
     dlssSources: dlssSourceChoices().filter((item) => !item.invalid),
     selectedDlssSource: dlssSourcePreference(state, dir),
+    optiscalerVersions: optiscaler.RELEASES.map(item => item.version),
+    selectedOptiscalerVersion: optiscalerPreference(state, dir),
     installedRoute: scan.install && scan.install.route,
     installedFeederVersion: scan.install && scan.install.feederVersion,
     antiCheatWarning: compatibility.hasAntiCheat(dir, scan.chosen?.path),
@@ -1076,6 +1087,7 @@ ipcMain.handle('details', async (_event, dir) => {
     installedExe: scan.install && scan.install.exe,
     previousReShadeRoute: scan.install && scan.install.previousReShadeRoute,
     optiscaler: scan.install && scan.install.optiscaler,
+    gamePreset: gamePresets.availability(appid, activeManifest),
     recommendedRoute: installRoutes.recommendedRoute(scan),
     exes: scan.exeCandidates.map((e) => ({
       rel: e.rel, path: e.path, apiLabel: e.apiLabel, api: e.api,
@@ -1104,6 +1116,36 @@ ipcMain.handle('details', async (_event, dir) => {
       ? pe.getFileVersion(detailsPayload.source.feeder.hostAddon) : null,
     costScalerVersions: costScaler.VERSIONS
   };
+});
+
+function optiscalerPreference(state, dir) {
+  const selections = state.optiscalerSelections && typeof state.optiscalerSelections === 'object' && !Array.isArray(state.optiscalerSelections)
+    ? state.optiscalerSelections : {};
+  const selected = selections[keyFor(dir)];
+  return optiscaler.RELEASES.some(item => item.version === selected) ? selected : optiscaler.RELEASE.version;
+}
+
+ipcMain.handle('optiscaler-builds', async (_event, dir) => {
+  const state = loadState();
+  return {
+    versions: optiscaler.RELEASES.map(item => item.version),
+    selected: typeof dir === 'string' && path.isAbsolute(dir)
+      ? optiscalerPreference(state, dir)
+      : optiscaler.RELEASE.version
+  };
+});
+
+ipcMain.handle('set-optiscaler-build', async (_event, dir, version) => {
+  if (mutationBusy) return { ok: false, code: 'errJobBusy' };
+  if (typeof dir !== 'string' || !path.isAbsolute(dir)) return { ok: false, code: 'errOptiVersionChoice' };
+  const selected = optiscaler.RELEASES.find(item => item.version === version)?.version;
+  if (!selected) return { ok: false, code: 'errOptiVersionChoice' };
+  const state = loadState();
+  state.optiscalerSelections = state.optiscalerSelections && typeof state.optiscalerSelections === 'object' && !Array.isArray(state.optiscalerSelections)
+    ? state.optiscalerSelections : {};
+  if (selected === optiscaler.RELEASE.version) delete state.optiscalerSelections[keyFor(dir)];
+  else state.optiscalerSelections[keyFor(dir)] = selected;
+  return await saveState(state) ? { ok: true, version: selected } : { ok: false, code: 'errOptiVersionSave' };
 });
 
 let mutationBusy = false;
@@ -1148,7 +1190,7 @@ async function exclusiveMutation(work) {
   finally { mutationBusy = false; }
 }
 
-ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, requestedAddon, requestedMultiFrameGeneration, requestedEffects, requestedDgVoodooVersion, requestedMfgVersion, requestedDlssSource) => exclusiveMutation(async () => {
+ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, requestedAddon, requestedMultiFrameGeneration, requestedEffects, requestedDgVoodooVersion, requestedMfgVersion, requestedDlssSource, requestedOptiscalerVersion) => exclusiveMutation(async () => {
   const p = payload();
   if (!p) return {
     ok: false,
@@ -1294,15 +1336,26 @@ ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, re
     const missing = missingVCRuntime(64, path.dirname(target.path), process.env.SystemRoot, ['msvcp140_atomic_wait.dll']);
     if (missing.length) return { ok: false, code: 'runtimeRequiredHint', message: missing.join(', ') };
     send({ code: 'optiDownloading', params: {} });
+    const optiscalerVersion = route === 'optiscaler'
+      ? (requestedOptiscalerVersion || optiscalerPreference(loadState(), dir))
+      : null;
+    if (route === 'optiscaler' && !optiscaler.RELEASES.some(item => item.version === optiscalerVersion)) {
+      return { ok: false, code: 'errOptiVersionChoice' };
+    }
     try {
       optiRoot = route === 'optiscaler-fsr' || route === 'optiscaler-fsr-hybrid'
         ? await optiscaler.ensureFsr(app.getPath('userData'))
         : route === 'optiscaler-multipass'
         ? await optiscaler.ensureMultipass(app.getPath('userData'))
-        : await optiscaler.ensureOptiScaler(app.getPath('userData'));
+        : await optiscaler.ensureOptiScaler(app.getPath('userData'), optiscalerVersion);
     }
     catch (err) { return { ok: false, code: componentCode(err, 'errOptiDownload'), message: err.message }; }
-    send({ code: 'optiVerified', params: { version: (route === 'optiscaler-fsr' || route === 'optiscaler-fsr-hybrid' ? optiscaler.FSR_RELEASE : route === 'optiscaler-multipass' ? optiscaler.MULTIPASS_RELEASE : optiscaler.RELEASE).version } });
+    const release = route === 'optiscaler-fsr' || route === 'optiscaler-fsr-hybrid'
+      ? optiscaler.FSR_RELEASE
+      : route === 'optiscaler-multipass'
+      ? optiscaler.MULTIPASS_RELEASE
+      : optiscaler.releaseFor(optiscalerVersion);
+    send({ code: 'optiVerified', params: { version: release.version } });
   }
   if (route === 'cost-scaler') {
     const confirmation = await dialog.showMessageBox(win, {
@@ -1398,6 +1451,22 @@ ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, re
       addStreamline: false,
       upgradeReShade: false
     }, send);
+    saveOperation(dir, manifest, 'install', send);
+    return { ok: true, replaced: manifest.replaced.length, added: manifest.added.length };
+  } catch (err) {
+    return { ok: false, code: err.code, message: err.message };
+  }
+}));
+
+ipcMain.handle('apply-game-preset', (event, dir) => exclusiveMutation(async () => {
+  const send = (e) => event.sender.send('job', e);
+  const appid = gameAppId(dir);
+  try {
+    const old = backends.readManifest(dir);
+    const exe = old ? journal.safePath(dir, old.game.exe) : null;
+    await guards.assertGameClosed(dir, exe);
+    const manifest = await gamePresets.apply(dir, appid);
+    send({ code: 'gamePresetApplied', params: { label: manifest.gamePreset.label } });
     saveOperation(dir, manifest, 'install', send);
     return { ok: true, replaced: manifest.replaced.length, added: manifest.added.length };
   } catch (err) {

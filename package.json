@@ -35,6 +35,7 @@
       "preload.js",
       "THIRD_PARTY_NOTICES.md",
       "src/**/*",
+      "settings/**/*",
       "assets/**/*",
       "package.json"
     ],

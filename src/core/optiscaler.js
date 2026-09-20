@@ -8,13 +8,23 @@ const pe = require('./pe');
 const ini = require('./feeder-config');
 const { fetchVerified, digest } = require('./runtime-components');
 const { safePath } = require('./file-journal');
-const RELEASE = Object.freeze({
-  version: '0.9.4-dlss-unlocked',
-  url: 'https://github.com/ShyVortex/dlss-unlocked/releases/download/NR-v0.9.4/dlss-unlocked-standalone-NR-v0.9.4.zip',
-  sha256: '65a1df2df7a8adddcc9273d353111e23606d9551fce5446b96def3862b6fd8de',
-  licenseHash: '0b8b1b368799404cd240c10e5ea22cf4086ef163baf4699d983e37aafdad4299',
-  family: 'dlss-unlocked'
-});
+const RELEASES = Object.freeze([
+  {
+    version: '0.9.7-dlss-unlocked',
+    url: 'https://github.com/ShyVortex/dlss-unlocked/releases/download/NR-v0.9.7/dlss-unlocked-standalone-NR-v0.9.7.zip',
+    sha256: 'de3ddfad0d210eb85e01e99def61c5dc7a224808e9f2e0b06c85af3ca9611ecf',
+    licenseHash: '0b8b1b368799404cd240c10e5ea22cf4086ef163baf4699d983e37aafdad4299',
+    family: 'dlss-unlocked'
+  },
+  {
+    version: '0.9.4-dlss-unlocked',
+    url: 'https://github.com/ShyVortex/dlss-unlocked/releases/download/NR-v0.9.4/dlss-unlocked-standalone-NR-v0.9.4.zip',
+    sha256: '65a1df2df7a8adddcc9273d353111e23606d9551fce5446b96def3862b6fd8de',
+    licenseHash: '0b8b1b368799404cd240c10e5ea22cf4086ef163baf4699d983e37aafdad4299',
+    family: 'dlss-unlocked'
+  }
+]);
+const RELEASE = RELEASES[0];
 const MULTIPASS_RELEASE = Object.freeze({
   version: '0.8.3-multipass',
   url: 'https://github.com/wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass/releases/download/v0.8.3/OptiScaler-NR-v0.8.3.zip',
@@ -28,7 +38,6 @@ const FSR_RELEASE = Object.freeze({
   sha256: '575cb4df866116093df75af607e37fd70e10f5163e0f23fd5c804142e80ef0ad',
   family: 'fsr'
 });
-const RELEASES = Object.freeze([RELEASE]);
 const MULTIPASS_RELEASES = Object.freeze([MULTIPASS_RELEASE]);
 const FSR_RELEASES = Object.freeze([FSR_RELEASE]);
 const LIBRARIES = [

@@ -513,6 +513,7 @@ let jobRunning = false;
 const exeChoice = new Map();
 const routeChoice = new Map();
 const dgVoodooVersionChoice = new Map();
+const optiscalerVersionChoice = new Map();
 const nativeAddonChoice = new Map();
 const multiFrameGenerationChoice = new Map();
 const mfgVersionChoice = new Map();
@@ -630,10 +631,12 @@ function installOptions(d, pick, dir) {
   const optiFsrHybridReason = window.installRoutes.optiFsrHybridReason(window.renderingApi.effective(pick, pick.apiOverride || 'auto'));
   const legacy = ['d3d8', 'd3d9'].includes(api.api);
   const selectedDgVoodoo = dgVoodooVersionChoice.get(dir) || d.dgVoodooVersion;
+  const selectedOptiscaler = optiscalerVersionChoice.get(dir) || d.selectedOptiscalerVersion || d.optiscalerVersion;
   const selectedMfg = mfgVersionChoice.get(dir) || d.mfgVersion;
   const selectedDlssSource = dlssSourceChoice.has(dir) ? dlssSourceChoice.get(dir) : (d.selectedDlssSource || '');
   const componentVersions = [];
   if (legacy) componentVersions.push(`dgVoodoo2 v${selectedDgVoodoo}`);
+  if (route === 'optiscaler') componentVersions.push(`DLSS Unlocked OptiScaler v${String(selectedOptiscaler || '').replace(/-dlss-unlocked$/, '')}`);
   if (!opti && route === 'feeder') {
     componentVersions.push(`DLSS5-Feeder v${d.feederVersion}`);
     componentVersions.push(`RenoDX DLSS 5 ${d.renodxVersion ? `v${d.renodxVersion}` : '(version unavailable)'}`);
@@ -665,6 +668,9 @@ function installOptions(d, pick, dir) {
       ${!opti && route === 'feeder' ? `<label><span>${t('setFeederVersion')}</span><select id="installFeederVersion" aria-describedby="installFeederHint">
         ${d.feederVersions.map(version => `<option value="${esc(version)}"${version === d.feederVersion ? ' selected' : ''}>v${esc(version)}</option>`).join('')}
       </select></label>` : ''}
+      ${route === 'optiscaler' && d.optiscalerVersions?.length ? `<label><span>${t('setOptiscalerVersion')}</span><select id="installOptiscalerVersion" aria-describedby="installOptiscalerHint">
+        ${d.optiscalerVersions.map(version => `<option value="${esc(version)}"${version === selectedOptiscaler ? ' selected' : ''}>DLSS Unlocked v${esc(version.replace(/-dlss-unlocked$/, ''))}</option>`).join('')}
+      </select></label>` : ''}
       ${d.dlssSources?.length > 1 ? `<label><span>${t('setDlssSource')}</span><select id="installDlssSource" aria-describedby="installDlssHint">
         ${d.dlssSources.map(item => `<option value="${esc(item.path || '')}"${(item.path || '') === selectedDlssSource ? ' selected' : ''}>${esc(item.label)}</option>`).join('')}
       </select></label>` : ''}
@@ -690,6 +696,7 @@ function installOptions(d, pick, dir) {
     ${legacy ? `<div class="emu-note" id="installDgVoodooHint"><span>${t('setDgVoodooHint')}</span><span>${t('legacyRendererHint')}</span><span>${t('legacyDlssOptionsHint')}</span></div>` : ''}
     ${componentVersions.length ? `<div class="emu-note" id="installComponentsHint"><b>${t('installComponents')}</b>${componentVersions.map(esc).map(value => `<span>${value}</span>`).join('')}</div>` : ''}
     ${!opti && route === 'feeder' ? `<div class="emu-note" id="installFeederHint"><span>${t('setFeederHint')}</span></div>` : ''}
+    ${route === 'optiscaler' && d.optiscalerVersions?.length ? `<div class="emu-note" id="installOptiscalerHint"><span>${t('setOptiscalerHint')}</span></div>` : ''}
     ${!opti && !cost && route === 'native' && pick.bitness === 64 && d.nativeAddons?.length ? `<div class="emu-note" id="nativeAddonHint">Select the RenoDX DLSS 5 build to install. Only one is installed at a time.</div>` : ''}
     ${!opti && !cost && route === 'native' && pick.bitness === 64 && pick.multiFrameGenerationAvailable ? `<div class="emu-note" id="multiFrameGenerationHint"><span>${t('multiFrameGenerationHint')}</span></div>` : ''}
     ${!opti && !cost && route === 'native' && pick.bitness === 64 && pick.multiFrameGenerationAvailable && multiFrameGenerationChoice.get(dir) && d.mfgVersions?.length ? `<div class="emu-note" id="installMfgHint"><span>${t('setMfgHint')}</span></div>` : ''}
@@ -736,6 +743,9 @@ async function openSheet(dir, keepLog = false) {
   if (!dgVoodooVersionChoice.has(dir)) dgVoodooVersionChoice.set(dir, d.dgVoodooVersion);
   d.feederVersions = settings.feederVersions;
   d.feederVersion = settings.feederVersion;
+  d.optiscalerVersions = d.optiscalerVersions || settings.optiscalerVersions;
+  d.optiscalerVersion = settings.optiscalerVersion;
+  if (!optiscalerVersionChoice.has(dir)) optiscalerVersionChoice.set(dir, d.selectedOptiscalerVersion || d.optiscalerVersion);
   d.mfgVersions = settings.mfgVersions;
   d.mfgVersion = settings.mfgVersion;
   if (!mfgVersionChoice.has(dir)) mfgVersionChoice.set(dir, d.mfgVersion);
@@ -797,8 +807,10 @@ async function openSheet(dir, keepLog = false) {
 
       <div class="sheet-actions">
         <button class="btn-install" id="doInstall"${d.ok && pick && !pick.installIssue && routesFor(pick).length ? '' : ' disabled'}>${installLabel(d, pick, dir)}</button>
+        ${d.gamePreset ? `<button class="ghost sm" id="doPreset"${d.gamePreset.available ? '' : ' disabled'}>${t('applyGamePreset')}</button>` : ''}
         <button class="btn-restore" id="doRestore"${d.hasBackup ? '' : ' disabled'}>${t('restore')}</button>
       </div>
+      ${d.gamePreset ? `<div class="emu-note"><b>${esc(d.gamePreset.label)}</b><span>${t(d.gamePreset.available ? 'gamePresetHint' : d.gamePreset.sourceExists ? 'gamePresetNeedsMultipass' : 'gamePresetUnavailable')}</span></div>` : ''}
       <div class="job-toolbar"><button class="ghost sm" id="copyJob"${jobLines.length ? '' : ' disabled'}>${t('copyLog')}</button></div>
       <div class="job" id="job" role="status" aria-live="polite">${esc(jobLines.join('\n') || t('jobReady'))}</div>
     </div>`;
@@ -817,6 +829,22 @@ async function openSheet(dir, keepLog = false) {
       await openSheet(dir, true);
       $('installFeederVersion')?.focus();
     }
+  };
+  const optiscalerVersionSelect = $('installOptiscalerVersion');
+  if (optiscalerVersionSelect) optiscalerVersionSelect.onchange = async () => {
+    const value = optiscalerVersionSelect.value;
+    const previous = optiscalerVersionChoice.get(dir) || d.selectedOptiscalerVersion || d.optiscalerVersion;
+    optiscalerVersionChoice.set(dir, value);
+    optiscalerVersionSelect.disabled = true;
+    let result;
+    try { result = await window.lab.setOptiscalerBuild(dir, value); }
+    catch { result = { ok: false, code: 'errOptiVersionSave' }; }
+    if (!result?.ok) {
+      optiscalerVersionChoice.set(dir, previous);
+      optiscalerVersionSelect.value = previous;
+      jobLog(t(result?.code || 'errOptiVersionSave'));
+    }
+    optiscalerVersionSelect.disabled = false;
   };
   const apiSelect = $('apiChoice');
   if (apiSelect) apiSelect.onchange = async () => {
@@ -883,6 +911,8 @@ async function openSheet(dir, keepLog = false) {
     reshadeEffectChoices.set(dir, selected);
   });
   $('doInstall').onclick = () => runJob('install', dir);
+  const presetButton = $('doPreset');
+  if (presetButton) presetButton.onclick = () => runJob('preset', dir);
   $('doRestore').onclick = () => runJob('restore', dir);
 }
 
@@ -912,11 +942,14 @@ async function runJob(kind, dir) {
   jobRunning = true;
   const install = $('doInstall');
   const restoreBtn = $('doRestore');
+  const presetBtn = $('doPreset');
   install.disabled = restoreBtn.disabled = true;
+  if (presetBtn) presetBtn.disabled = true;
   document.querySelectorAll('#sheet select, #exeSelect, #sheetClose').forEach(e => { e.disabled = true; });
   install.textContent = kind === 'install' ? t('installing') : t('install');
+  if (presetBtn) presetBtn.textContent = kind === 'preset' ? t('applying') : t('applyGamePreset');
   jobLines = [];
-  jobLog(kind === 'install' ? '--- installing ---' : '--- restoring ---');
+  jobLog(kind === 'install' ? '--- installing ---' : kind === 'preset' ? '--- applying preset ---' : '--- restoring ---');
 
   const pick = sheetDetails ? chosenExe(sheetDetails, dir) : null;
   let res;
@@ -934,16 +967,20 @@ async function runJob(kind, dir) {
       reshadeEffectChoices.get(dir) ? [...reshadeEffectChoices.get(dir)] : [],
       $('installDgVoodooVersion')?.value || dgVoodooVersionChoice.get(dir) || null,
       $('installMfgVersion')?.value || mfgVersionChoice.get(dir) || null,
-      $('installDlssSource')?.value || dlssSourceChoice.get(dir) || null
+      $('installDlssSource')?.value || dlssSourceChoice.get(dir) || null,
+      $('installOptiscalerVersion')?.value || optiscalerVersionChoice.get(dir) || null
     )
+    : kind === 'preset'
+    ? await window.lab.applyGamePreset(dir)
     : await window.lab.restoreGame(dir);
   } catch (error) { res = { ok: false, message: error.message }; }
   jobRunning = false;
   install.textContent = t('install');
+  if (presetBtn) presetBtn.textContent = t('applyGamePreset');
 
   if (res.ok) {
-    jobLog(kind === 'install' ? `done - ${res.replaced} replaced, ${res.added} added` : 'done - originals restored');
-    log(`${kind === 'install' ? 'Installed' : 'Restored'}: ${dir}`);
+    jobLog(kind === 'install' || kind === 'preset' ? `done - ${res.replaced} replaced, ${res.added} added` : 'done - originals restored');
+    log(`${kind === 'install' ? 'Installed' : kind === 'preset' ? 'Preset applied' : 'Restored'}: ${dir}`);
     // Recent Games tracks what was actually swapped, not what was browsed.
     state.recents = await window.lab.touch(dir);
     renderRecent();
@@ -1220,7 +1257,7 @@ document.addEventListener('keydown', (e) => {
 });
 // Most job events are progress markers read as codes. The few that are
 // advice for the person are shown in their language instead.
-const SPOKEN_JOB_CODES = new Set(['historySaveWarning', 'driverNeuralFault', 'oldShaderCompiler', 'feedVkLayerReady', 'neuralModelKept']);
+const SPOKEN_JOB_CODES = new Set(['historySaveWarning', 'driverNeuralFault', 'oldShaderCompiler', 'feedVkLayerReady', 'neuralModelKept', 'gamePresetApplied']);
 window.lab.onJob((e) => jobLog(SPOKEN_JOB_CODES.has(e.code)
   ? t(e.code, ...Object.values(e.params || {}))
   : `${e.code} ${JSON.stringify(e.params)}`));
