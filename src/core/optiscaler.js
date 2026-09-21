@@ -10,6 +10,13 @@ const { fetchVerified, digest } = require('./runtime-components');
 const { safePath } = require('./file-journal');
 const RELEASES = Object.freeze([
   {
+    version: '0.9.8-dlss-unlocked',
+    url: 'https://github.com/ShyVortex/dlss-unlocked/releases/download/NR-v0.9.8/dlss-unlocked-standalone-NR-v0.9.8.zip',
+    sha256: 'a439e8fe709ecca668bb49696589b7a706122c600e891f855fbb5962fbd4ba20',
+    licenseHash: '0b8b1b368799404cd240c10e5ea22cf4086ef163baf4699d983e37aafdad4299',
+    family: 'dlss-unlocked'
+  },
+  {
     version: '0.9.7-dlss-unlocked',
     url: 'https://github.com/ShyVortex/dlss-unlocked/releases/download/NR-v0.9.7/dlss-unlocked-standalone-NR-v0.9.7.zip',
     sha256: 'de3ddfad0d210eb85e01e99def61c5dc7a224808e9f2e0b06c85af3ca9611ecf',

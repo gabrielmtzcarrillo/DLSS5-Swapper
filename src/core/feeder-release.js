@@ -20,23 +20,26 @@ const CURRENT = {
   }
 };
 
-// Upstream's 1.16 betas are published as full releases, not prereleases, and
-// carry the command-list failure handling from issue #104 (a list that will
-// not close now stops the feed instead of running on stale output). Offered
-// as a choice rather than the default until it is confirmed across games.
+// Upstream's 1.16 betas are published as full releases, not prereleases.
+// beta.6 carries the command-list failure handling from issue #104, the host
+// device-removal exit from #119, and the in-game panel fixes from #118. Its
+// IPC protocol is v10: the add-on and host helper refuse to pair with an
+// older half, so a 32-bit install always takes both from this archive.
+// Offered as a choice rather than the default until it is confirmed across
+// games.
 const BETA_1_16 = {
-  version: '1.16.0-beta.4',
-  archive: ['DLSS5-Feeder-1.16.0-beta.4.zip', 'https://github.com/jlrouzies-fr/DLSS5-Feeder/releases/download/v1.16.0-beta.4/DLSS5-Feeder-1.16.0-beta.4.zip', 'd16f8b527f76ff1f531682a576d699cb5634838c0e2899585e3671814eda2745'],
-  addon64Size: 308224,
+  version: '1.16.0-beta.6',
+  archive: ['DLSS5-Feeder-1.16.0-beta.6.zip', 'https://github.com/jlrouzies-fr/DLSS5-Feeder/releases/download/v1.16.0-beta.6/DLSS5-Feeder-1.16.0-beta.6.zip', '0f9d9cda66e05a0f21ccabbd778694b826c8c80402cc62046aedea6d157bdcad'],
+  addon64Size: 310272,
   hashes: {
-    'dlss5-feed.addon32': '0e1604137027c00884222d811f7f03ac0bb0120c89ced4368f4453f6cc70ba2d',
-    'dlss5-feed.addon64': '875b6baa286412ee6166965b9fd9097e059515f6e2eb8464aae2c7ead27f213d',
-    'dlss5-feed-host64.exe': 'ad60a068a5c3cbf1ba87cc7af3191a93d0b3312486ed26d6b3b5881c828f23fa',
+    'dlss5-feed.addon32': 'e99baae32723a2ac6c8f9c42e1e0606a2e47866fcb1b0736e0fd5606fbfcfffb',
+    'dlss5-feed.addon64': 'd494a63af98932791b3787ab2a7a900c77158fd312e8f34858206c2d564aa08f',
+    'dlss5-feed-host64.exe': 'a14035807ebd0202a5644f39050bb7b743e05c2f221b916bab2d71c43029dd04',
     'reshade-shaders/Shaders/DLSS5_Feed.fx': 'cdac08a721b14b97187dd86c5b5bead157c9063d7ee859a0f131a8ee791695f1',
-    'layer-x64/VkLayer_feed_vk.dll': '0bf8b78f8276359be1ff6ccb97f75e394d766aa93c5e49f663aed1fe90b246f3',
+    'layer-x64/VkLayer_feed_vk.dll': 'ed5978fff1ac1b2c85aed7b1ffe2c7668e2be71f5a8cff86b4327bfa1d959a28',
     'layer-x64/VkLayer_feed_vk.json': 'c15967b3f8847a145e21058a1e57e92c595ee17fc5dd23ab3278b0148ad6e9d1',
     'layer-x64/run-with-feed-layer.bat': 'bc9aa7964742e23653556be978f540f503f3cef928b6de7a38f77c570bb764f9',
-    'layer-x86/VkLayer_feed_vk32.dll': '62a00e8b4a4e01ad9dce3a2d898d911dc88fdbc9e36bf4397bd7103b83241683',
+    'layer-x86/VkLayer_feed_vk32.dll': 'cbb3039e13ce1a851c00bba24a93586ea8d9731dad3fcf426f412cc764a61860',
     'layer-x86/VkLayer_feed_vk32.json': '28f8174eb8fed02266bafa6910eab07922ec6d2bdb33110699c586f74b254921',
     'layer-x86/run-with-feed-layer32.bat': '75d4584ad01619402a10e0d8342b114613057a1d3b0ac8dbe9280b740090c3e8'
   }
