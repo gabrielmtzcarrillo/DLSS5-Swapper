@@ -73,3 +73,47 @@ test('Xenia mitigation disables experimental camera vectors and enables validati
   assert.equal(config.getIni(ini, 'RenoDX.DLSS5', 'NRUICorrection'), '1');
   assert.equal(config.getIni(ini, 'RenoDX.DLSS5', 'NRAutoMask'), '1');
 });
+
+test('feed cfg seeds the work keys and keeps existing values without a scale', () => {
+  const cfg = config.configureFeed('enabled=1\nwork_resolution= 85 \nwork_upscale=2\nwork_sharpness=0.45\ncustom_key=7\n');
+  assert.match(cfg, /^work_resolution=85$/m);
+  assert.match(cfg, /^work_upscale=2$/m);
+  assert.match(cfg, /^work_sharpness=0\.45$/m);
+  assert.match(cfg, /^custom_key=7$/m);
+  const fresh = config.configureFeed('');
+  assert.match(fresh, /^work_resolution=100$/m);
+  assert.match(fresh, /^work_upscale=0$/m);
+  assert.match(fresh, /^work_sharpness=0\.30$/m);
+});
+
+test('a work scale preset writes the resolution, upscaler and sharpness together', () => {
+  const balanced = config.configureFeed('work_resolution=100\nwork_upscale=0\n', 'balanced');
+  assert.match(balanced, /^work_resolution=67$/m);
+  assert.match(balanced, /^work_upscale=2$/m);
+  assert.match(balanced, /^work_sharpness=0\.40$/m);
+
+  const quality = config.configureFeed('', 'quality');
+  assert.match(quality, /^work_resolution=85$/m);
+  assert.match(quality, /^work_upscale=2$/m);
+
+  const native = config.configureFeed('work_resolution=67\nwork_upscale=2\n', 'native');
+  assert.match(native, /^work_resolution=100$/m);
+  assert.match(native, /^work_upscale=0$/m);
+});
+
+test('a custom percentage is clamped to what Feeder accepts and named by preset when it matches', () => {
+  assert.equal(config.feedScale({ id: 'custom', resolution: 20 }).resolution, 50);
+  assert.equal(config.feedScale({ id: 'custom', resolution: 400 }).resolution, 100);
+  assert.equal(config.feedScale({ id: 'custom', resolution: 72.4, upscale: 1 }).resolution, 72);
+  assert.equal(config.feedScale({ id: 'custom', resolution: 72, upscale: 1 }).upscale, 1);
+  assert.equal(config.feedScale({ id: 'custom', resolution: 72, upscale: 9 }).upscale, 2);
+  assert.equal(config.feedScale({ id: 'balanced', resolution: 67 }).id, 'balanced');
+  assert.equal(config.feedScale({ id: 'balanced', resolution: 73 }).id, 'custom');
+  assert.equal(config.feedScale('nonsense'), null);
+  assert.equal(config.feedScale(null), null);
+
+  const custom = config.configureFeed('work_resolution=100\n', { id: 'custom', resolution: 73, upscale: 1, sharpness: 0.5 });
+  assert.match(custom, /^work_resolution=73$/m);
+  assert.match(custom, /^work_upscale=1$/m);
+  assert.match(custom, /^work_sharpness=0\.50$/m);
+});

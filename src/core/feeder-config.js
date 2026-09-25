@@ -160,10 +160,64 @@ const FEED_DEFAULTS = {
   enabled: '1', mode: '2', hdr: '-1', depth_inverted: '-1', flags: '-1',
   reset_every: '0', warmup_rebuild: '180', rebuild: '0', log_frames: '3',
   create_delay: '60', preset: '0', work_resolution: '100',
+  work_upscale: '0', work_sharpness: '0.30',
   mv_scale_x: '1.000', mv_scale_y: '1.000', host_window: '0', async_home: '1'
 };
 
-function configureFeed(text) {
+// The neural pass can run below output resolution and be brought back up:
+// work_resolution is the percentage it runs at, work_upscale picks how the
+// result returns to output size. Feeder's own overlay edits the same three
+// keys live, so a preset written here is a starting point, not a lock.
+const FEED_UPSCALERS = Object.freeze({ bilinear: 0, fsr1: 1, dlss: 2 });
+const FEED_SCALE_RANGE = Object.freeze({ min: 50, max: 100 });
+
+// Percentages follow the scales people actually run: full resolution, a light
+// step down, and a two-thirds step that suits a high output resolution.
+// Anything between them goes through a custom value, because the number that
+// pays off depends on the screen the game is rendering to.
+const FEED_SCALE_PRESETS = Object.freeze({
+  native: Object.freeze({ id: 'native', resolution: 100, upscale: FEED_UPSCALERS.bilinear, sharpness: 0.3 }),
+  quality: Object.freeze({ id: 'quality', resolution: 85, upscale: FEED_UPSCALERS.dlss, sharpness: 0.3 }),
+  balanced: Object.freeze({ id: 'balanced', resolution: 67, upscale: FEED_UPSCALERS.dlss, sharpness: 0.4 })
+});
+
+function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+
+// Accepts a preset id, or `{ resolution, upscale, sharpness }` for a custom
+// scale. Anything unusable resolves to null, which leaves the cfg as it is.
+function feedScale(choice) {
+  if (!choice) return null;
+  if (typeof choice === 'string') return FEED_SCALE_PRESETS[choice.trim().toLowerCase()] || null;
+  if (typeof choice !== 'object') return null;
+  const preset = FEED_SCALE_PRESETS[String(choice.id || '').trim().toLowerCase()] || null;
+  const resolution = Number(choice.resolution);
+  if (!Number.isFinite(resolution)) return preset;
+  const base = preset || FEED_SCALE_PRESETS.quality;
+  const upscale = Number(choice.upscale);
+  const sharpness = Number(choice.sharpness);
+  const scaled = Math.round(clamp(resolution, FEED_SCALE_RANGE.min, FEED_SCALE_RANGE.max));
+  return Object.freeze({
+    id: preset && preset.resolution === scaled ? preset.id : 'custom',
+    resolution: scaled,
+    upscale: Number.isFinite(upscale) ? clamp(Math.round(upscale), 0, 2) : base.upscale,
+    sharpness: Number.isFinite(sharpness) ? clamp(sharpness, 0, 1) : base.sharpness
+  });
+}
+
+function scaleValues(choice) {
+  const scale = feedScale(choice);
+  if (!scale) return {};
+  return {
+    work_resolution: String(scale.resolution),
+    work_upscale: String(scale.upscale),
+    work_sharpness: scale.sharpness.toFixed(2)
+  };
+}
+
+// Without a scale the existing values are normalised and kept: the cfg belongs
+// to the person as much as to the installer, and the overlay writes it too.
+function configureFeed(text, scale = null) {
+  const forced = scaleValues(scale);
   const lines = String(text || '').split(/\r?\n/);
   const seen = new Set();
   const out = lines.map((line) => {
@@ -172,9 +226,9 @@ function configureFeed(text) {
     const key = match[1].trim().toLowerCase();
     if (!(key in FEED_DEFAULTS)) return line;
     seen.add(key);
-    return `${key}=${match[2].trim()}`;
+    return `${key}=${key in forced ? forced[key] : match[2].trim()}`;
   }).filter((line, index, all) => !(line === '' && index === all.length - 1));
-  for (const [key, value] of Object.entries(FEED_DEFAULTS)) {
+  for (const [key, value] of Object.entries({ ...FEED_DEFAULTS, ...forced })) {
     if (!seen.has(key)) out.push(`${key}=${value}`);
   }
   return out.join('\r\n') + '\r\n';
@@ -206,5 +260,6 @@ function readText(file) {
 module.exports = {
   getIni, setIni, configureGameReShade, configureHostReShade,
   configurePreset, configureFeed, configureDgVoodoo, presetPath, readText,
-  configureSearchPath, configureConsumer
+  configureSearchPath, configureConsumer,
+  FEED_DEFAULTS, FEED_SCALE_PRESETS, FEED_SCALE_RANGE, FEED_UPSCALERS, feedScale
 };

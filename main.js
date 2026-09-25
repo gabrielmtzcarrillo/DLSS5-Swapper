@@ -34,6 +34,7 @@ const rtxmfg = require('./src/core/rtxmfg');
 const MFG_VERSIONS = Array.isArray(rtxmfg.VERSIONS) ? rtxmfg.VERSIONS : [rtxmfg];
 const backends = require('./src/core/backend-manager');
 const gamePresets = require('./src/core/game-presets');
+const feederConfig = require('./src/core/feeder-config');
 const journal = require('./src/core/file-journal');
 const guards = require('./src/core/install-guards');
 const compatibility = require('./src/core/compatibility');
@@ -434,6 +435,12 @@ ipcMain.handle('game-menu', async (event, dir, options) => {
     labels: options?.labels, position: options?.position, busy: mutationBusy || options?.busy === true });
 });
 
+// A stored scale is normalised through the same clamp the installer uses, so a
+// hand-edited state file cannot write a percentage Feeder would reject.
+function feedScaleChoice(state) {
+  return feederConfig.feedScale(state.feedScale) || feederConfig.FEED_SCALE_PRESETS.native;
+}
+
 ipcMain.handle('settings', () => {
   const state = loadState();
   let posterCount = 0;
@@ -443,6 +450,11 @@ ipcMain.handle('settings', () => {
     roots: lastRoots,
     dgVoodooVersions: DGVOODOO_VERSIONS.map(item => item.version),
     dgVoodooVersion: dgVoodooRelease(state.dgVoodooVersion).version,
+    feedScalePresets: Object.values(feederConfig.FEED_SCALE_PRESETS).map(item => ({
+      id: item.id, resolution: item.resolution, upscale: item.upscale
+    })),
+    feedScaleRange: feederConfig.FEED_SCALE_RANGE,
+    feedScale: feedScaleChoice(state),
     feederVersions: FEEDER_VERSIONS.map(item => item.version),
     feederVersion: (feederReleases.release ? feederReleases.release(state.feederVersion) : FEEDER_VERSIONS[0]).version,
     optiscalerVersions: optiscaler.RELEASES.map(item => item.version),
@@ -461,6 +473,15 @@ ipcMain.handle('set-dgvoodoo-version', async (_event, version) => {
   const selected = dgVoodooRelease(version).version;
   const state = loadState();
   state.dgVoodooVersion = selected;
+  await saveState(state);
+  return selected;
+});
+
+ipcMain.handle('set-feed-scale', async (_event, choice) => {
+  const selected = feederConfig.feedScale(choice);
+  if (!selected) throw new Error('Unsupported Feeder work scale');
+  const state = loadState();
+  state.feedScale = selected;
   await saveState(state);
   return selected;
 });
@@ -1436,6 +1457,7 @@ ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi, re
       route,
       antiCheatAcknowledged,
       emulator: target.emulator,
+      feedScale: feedScaleChoice(loadState()),
       source: p.source,
       optiRoot,
       costScalerRoot,

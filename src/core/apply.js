@@ -551,8 +551,15 @@ async function applyFeeder(config, log) {
   const cfgPath = path.join(exeDir, 'dlss5-feed.cfg');
   await writeTracked(
     manifest, gameDir, cfgPath,
-    feederConfig.configureFeed(feederConfig.readText(cfgPath)), { kind: 'config' }
+    feederConfig.configureFeed(feederConfig.readText(cfgPath), config.feedScale || null), { kind: 'config' }
   );
+  const feedScale = feederConfig.feedScale(config.feedScale);
+  if (feedScale) {
+    manifest.feedScale = feedScale;
+    log('feedScaleApplied', {
+      preset: feedScale.id, resolution: feedScale.resolution, upscale: feedScale.upscale
+    });
+  }
 
   const hostDir = bitness === 32 ? path.join(exeDir, 'host64') : exeDir;
   const hostExe = bitness === 32 ? path.join(hostDir, 'dlss5-feed-host64.exe') : null;

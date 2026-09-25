@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('lab', {
   settings: () => ipcRenderer.invoke('settings'),
   setDgVoodooVersion: (version) => ipcRenderer.invoke('set-dgvoodoo-version', version),
   setFeederVersion: (version) => ipcRenderer.invoke('set-feeder-version', version),
+  setFeedScale: (choice) => ipcRenderer.invoke('set-feed-scale', choice),
   setGroupGamesByStore: (enabled) => ipcRenderer.invoke('set-group-games-by-store', enabled),
   setCloseToTray: (enabled) => ipcRenderer.invoke('set-close-to-tray', enabled),
   driverNeuralFault: () => ipcRenderer.invoke('driver-neural-fault'),

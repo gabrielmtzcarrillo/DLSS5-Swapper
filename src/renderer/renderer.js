@@ -274,6 +274,13 @@ $('gameQuickFilters').onclick = (event) => {
   renderGames();
 };
 
+// Named scales read as a scale plus what brings the frame back up; a custom
+// percentage keeps the same shape so the menu stays one list.
+function feedScaleLabel(preset) {
+  const named = { native: 'feedScaleNative', quality: 'feedScaleQuality', balanced: 'feedScaleBalanced' }[preset.id];
+  return named ? t(named) : t('feedScaleCustom', preset.resolution);
+}
+
 async function renderSettings() {
   const info = await window.lab.settings();
   $('settings').innerHTML = `
@@ -287,6 +294,18 @@ async function renderSettings() {
       <select class="ghost sm" id="setFeederVersion" aria-describedby="setFeederHint">
         ${info.feederVersions.map(version => `<option value="${esc(version)}" ${version === info.feederVersion ? 'selected' : ''}>v${esc(version)}</option>`).join('')}
       </select></div>
+    <div class="set-row"><div><label class="k" for="setFeedScale">${t('setFeedScale')}</label>
+      <div class="v" id="setFeedScaleHint">${t('setFeedScaleHint')}</div></div>
+      <span>
+        <select class="ghost sm" id="setFeedScale" aria-describedby="setFeedScaleHint">
+          ${info.feedScalePresets.map(preset => `<option value="${esc(preset.id)}"${preset.id === info.feedScale.id ? ' selected' : ''}>${esc(feedScaleLabel(preset))}</option>`).join('')}
+          <option value="custom"${info.feedScale.id === 'custom' ? ' selected' : ''}>${esc(t('feedScaleCustom', info.feedScale.resolution))}</option>
+        </select>
+        <input class="ghost sm" id="setFeedScaleCustom" type="number" inputmode="numeric"
+          min="${info.feedScaleRange.min}" max="${info.feedScaleRange.max}" step="1"
+          value="${info.feedScale.resolution}" aria-label="${t('feedScaleCustomLabel')}"
+          ${info.feedScale.id === 'custom' ? '' : 'hidden'}>
+      </span></div>
     <div class="set-row"><div><div class="k">${t('setGroupGames')}</div>
       <div class="v" id="setGroupGamesHint">${t('setGroupGamesHint')}</div></div>
       <button class="setting-switch" id="setGroupGames" type="button" role="switch"
@@ -353,6 +372,36 @@ async function renderSettings() {
       select.disabled = false;
     }
   };
+  const feedScaleSelect = $('setFeedScale');
+  const feedScaleCustom = $('setFeedScaleCustom');
+  const saveFeedScale = async (choice) => {
+    feedScaleSelect.disabled = true;
+    feedScaleCustom.disabled = true;
+    try {
+      info.feedScale = await window.lab.setFeedScale(choice);
+      feedScaleSelect.value = info.feedScale.id;
+      feedScaleCustom.value = info.feedScale.resolution;
+    } catch {
+      feedScaleSelect.value = info.feedScale.id;
+      feedScaleCustom.value = info.feedScale.resolution;
+      log(t('errFeedScale'));
+    } finally {
+      feedScaleSelect.disabled = false;
+      feedScaleCustom.disabled = false;
+      feedScaleCustom.hidden = feedScaleSelect.value !== 'custom';
+    }
+  };
+  feedScaleSelect.onchange = () => {
+    if (feedScaleSelect.value !== 'custom') return saveFeedScale(feedScaleSelect.value);
+    feedScaleCustom.hidden = false;
+    feedScaleCustom.focus();
+    return undefined;
+  };
+  // `change` on a number input fires on blur or Enter, so a half-typed
+  // percentage is never saved and clamped back under the person's cursor.
+  feedScaleCustom.onchange = () => saveFeedScale({
+    id: 'custom', resolution: Number(feedScaleCustom.value), upscale: 2
+  });
   $('setFeederVersion').onchange = async () => {
     const select = $('setFeederVersion');
     select.disabled = true;
@@ -1257,7 +1306,7 @@ document.addEventListener('keydown', (e) => {
 });
 // Most job events are progress markers read as codes. The few that are
 // advice for the person are shown in their language instead.
-const SPOKEN_JOB_CODES = new Set(['historySaveWarning', 'driverNeuralFault', 'oldShaderCompiler', 'feedVkLayerReady', 'neuralModelKept', 'gamePresetApplied']);
+const SPOKEN_JOB_CODES = new Set(['historySaveWarning', 'driverNeuralFault', 'oldShaderCompiler', 'feedVkLayerReady', 'neuralModelKept', 'gamePresetApplied', 'feedScaleApplied']);
 window.lab.onJob((e) => jobLog(SPOKEN_JOB_CODES.has(e.code)
   ? t(e.code, ...Object.values(e.params || {}))
   : `${e.code} ${JSON.stringify(e.params)}`));
